@@ -66,9 +66,20 @@ pub const DEADBAND_LOW_MICROS: u64 = 950_000;
 /// The upper edge of the dead band; saturation strictly above it steps the multiplier up.
 ///
 /// LOAD-BEARING, and the single most load-bearing value in this crate. It must stay strictly
-/// above the largest supported safety-margin preset, with headroom. Lowering it toward
-/// `1_050_000` lets a network where every operator runs the 5% preset ratchet upward forever on a
-/// signal that carries no information about affordability.
+/// above the saturation a universally-adopted safety margin can produce, with headroom.
+///
+/// The comparison is against the *saturation*, not against the margin itself. A margin moves only
+/// [`VOLUME_WEIGHT`], which is one quarter of the reading, so a network where every operator runs
+/// the most generous 5% preset reads a volume signal of `1_050_000` and a saturation of
+/// `1_012_500` — leaving `87_500` of headroom here, and needing a 40% margin (4000 bp), eight
+/// times the largest preset, to reach this edge at all. `properties.rs` asserts that headroom
+/// from the presets themselves rather than from these numbers.
+///
+/// Stating that correctly matters in the safe direction: the 3:1 weighting buys considerably more
+/// protection than a reading of the volume signal alone suggests, so this is a wider margin than
+/// it looks, not a narrower one. Lowering this constant toward `1_012_500` would spend it, and let
+/// a network of margin defaults ratchet the price upward forever on a signal that carries no
+/// information about affordability.
 pub const DEADBAND_HIGH_MICROS: u64 = 1_100_000;
 
 /// Denominator of the per-epoch up-step: the multiplier rises by at most `prev / 8` (+12.5%).

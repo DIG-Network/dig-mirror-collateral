@@ -53,9 +53,14 @@ margin UI (`dign`, DIG App). This crate is the arithmetic and nothing else.
 
 ## Reference
 
-[`SPEC.md`](SPEC.md) is normative. It derives from the decision on
-[`DIG-Network/dig_ecosystem#3173`](https://github.com/DIG-Network/dig_ecosystem/issues/3173) and
-records the one place it deliberately diverges from it.
+[`SPEC.md`](SPEC.md) is normative, and derives from the decision on
+[`DIG-Network/dig_ecosystem#3173`](https://github.com/DIG-Network/dig_ecosystem/issues/3173).
+
+Where this crate departs from that decision, the departure is recorded in the source at its point
+of use rather than collected in `SPEC.md` — a divergence is only useful next to the expression it
+concerns. The sample-agreement threshold in [`src/sync.rs`](src/sync.rs) is the worked example: it
+keeps the formula from section 9 and corrects the annotation beside it, with the reasoning for
+which of the two was wrong.
 
 ## License
 
