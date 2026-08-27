@@ -15,18 +15,18 @@ thousand collateralised owners exist.
 use dig_mirror_collateral::{EpochCensus, EpochRecord};
 
 let epoch1 = EpochRecord::bootstrap();
-assert_eq!(epoch1.required_per_store_mojos, 1_000); // 1.000 DIG
+assert_eq!(epoch1.required_per_store_dig_base_units, 1_000); // 1.000 DIG
 
 let epoch2 = epoch1
     .advance(EpochCensus { epoch: 2, stores: 12, owners: 9, locked: 12_120 })
     .unwrap();
-assert_eq!(epoch2.required_per_store_mojos, 1_036); // 1.036 DIG
+assert_eq!(epoch2.required_per_store_dig_base_units, 1_036); // 1.036 DIG
 ```
 
 ## Why this crate looks the way it does
 
 Two independent implementations of this arithmetic must agree on every epoch, forever. A single
-differing mojo propagates into every later epoch, because each epoch's census qualifies coins
+differing DIG base unit propagates into every later epoch, because each epoch's census qualifies coins
 against the previous epoch's requirement. Everything unusual here follows from that:
 
 - **No floating point.** One ULP of divergence is a fork. A test reads the crate's own source to

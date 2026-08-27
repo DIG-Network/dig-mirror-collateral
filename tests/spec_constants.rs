@@ -17,7 +17,11 @@ use dig_mirror_collateral::*;
 /// line added here fails on the count rather than passing unchecked.
 fn constants() -> Vec<(&'static str, u64)> {
     vec![
-        ("EQUILIBRIUM_PER_STORE_MOJOS", EQUILIBRIUM_PER_STORE_MOJOS),
+        ("DIG_BASE_UNITS_PER_DIG", DIG_BASE_UNITS_PER_DIG),
+        (
+            "EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS",
+            EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS,
+        ),
         ("MULT_SCALE", MULT_SCALE),
         ("MULT_BOOTSTRAP_MICROS", MULT_BOOTSTRAP_MICROS),
         ("MULT_FLOOR_MICROS", MULT_FLOOR_MICROS),
@@ -29,9 +33,12 @@ fn constants() -> Vec<(&'static str, u64)> {
         ("PARTICIPATION_WEIGHT", PARTICIPATION_WEIGHT),
         ("VOLUME_WEIGHT", VOLUME_WEIGHT),
         ("SIGNAL_CAP_MICROS", SIGNAL_CAP_MICROS),
-        ("HANDICAP_MAX_MOJOS", HANDICAP_MAX_MOJOS),
+        ("HANDICAP_MAX_DIG_BASE_UNITS", HANDICAP_MAX_DIG_BASE_UNITS),
         ("HANDICAP_ZERO_AT_OWNERS", HANDICAP_ZERO_AT_OWNERS),
-        ("MIN_REQUIRED_PER_STORE_MOJOS", MIN_REQUIRED_PER_STORE_MOJOS),
+        (
+            "MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS",
+            MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS,
+        ),
         ("CENSUS_FINALITY_DEPTH_BLOCKS", CENSUS_FINALITY_DEPTH_BLOCKS),
         ("SYNC_MAX_SAMPLE", SYNC_MAX_SAMPLE),
         ("SYNC_MIN_POPULATION", SYNC_MIN_POPULATION),
@@ -113,7 +120,7 @@ fn spec_constant_table_has_no_unchecked_rows() {
 fn spec_table_parser_is_not_vacuous() {
     let rows = spec_rows();
     assert!(
-        rows.len() >= 19,
+        rows.len() >= 20,
         "parsed only {} rows from SPEC.md section 2 — the parser, not the table, is likely wrong",
         rows.len()
     );

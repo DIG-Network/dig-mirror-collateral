@@ -57,7 +57,7 @@ fn no_source_file_mentions_a_float_type() {
     }
 
     assert!(
-        files_read >= 9,
+        files_read >= 10,
         "the guard read only {files_read} source files — it must cover the whole crate, and a \
          guard that silently reads nothing is worse than no guard"
     );

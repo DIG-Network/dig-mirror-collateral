@@ -7,37 +7,50 @@
 use dig_mirror_collateral::{
     apply_safety_margin, handicap_for_owners, required_per_store, saturation_micros,
     step_multiplier, Band, EpochCensus, EpochRecord, DEADBAND_HIGH_MICROS, DEADBAND_LOW_MICROS,
-    DOWN_STEP_DENOM, EQUILIBRIUM_PER_STORE_MOJOS, HANDICAP_MAX_MOJOS, HANDICAP_ZERO_AT_OWNERS,
-    MIN_REQUIRED_PER_STORE_MOJOS, MULT_SCALE, SAFETY_MARGIN_PRESETS_BP, UP_STEP_DENOM,
+    DOWN_STEP_DENOM, EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS, HANDICAP_MAX_DIG_BASE_UNITS,
+    HANDICAP_ZERO_AT_OWNERS, MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS, MULT_SCALE,
+    SAFETY_MARGIN_PRESETS_BP, UP_STEP_DENOM,
 };
 
-/// Property 1 — the bootstrap subsidy lands the first epoch *exactly* on the floor.
-///
-/// `HANDICAP_MAX_MOJOS` was chosen for this identity: maximal subsidy with none of it wasted
-/// below the clamp, and no flat region where the curve does nothing. Three constants must move
-/// together to preserve it, so it is asserted rather than left as an arithmetic coincidence a
-/// later edit could break silently.
-#[test]
-fn the_maximum_subsidy_lands_exactly_on_the_floor() {
-    assert_eq!(
-        EQUILIBRIUM_PER_STORE_MOJOS - HANDICAP_MAX_MOJOS,
-        MIN_REQUIRED_PER_STORE_MOJOS,
-        "the maximum subsidy must land on the floor exactly: below it wastes subsidy, above it \
-         leaves a flat region where added owners do not change the price"
-    );
+/// The bootstrap price: the equilibrium price less the full subsidy, 1.000 DIG.
+const BOOTSTRAP_PRICE: u64 = EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS - HANDICAP_MAX_DIG_BASE_UNITS;
 
-    // And the composed function agrees, so the identity is a property of the code and not only
-    // of the constants.
+// The constant half of property 1, checked at compile time because it is decidable there. A
+// subsidy at or above the equilibrium price would hand the bootstrap price to the clamp and
+// flatten the bottom of the curve, so that gaining an owner did not change the price; a bootstrap
+// price sitting on the clamp would mean the clamp, not the curve, had set it. Neither can reach a
+// test run, because the build fails first.
+const _: () = assert!(HANDICAP_MAX_DIG_BASE_UNITS < EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS);
+const _: () = assert!(BOOTSTRAP_PRICE > MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS);
+
+/// Property 1 — the bootstrap price is set by the subsidy curve, never by the clamp.
+///
+/// At 1.0x with no verified owners the requirement is `EQUILIBRIUM - HANDICAP_MAX`, which is
+/// 1.000 DIG. The subsidy must stay strictly *below* the equilibrium price for that to hold: a
+/// subsidy at or above it would drop the first epoch onto
+/// `MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS` and hand the bootstrap price to the clamp, flattening
+/// the bottom of the curve so that gaining an owner did nothing.
+///
+/// This property was previously written as the identity
+/// `EQUILIBRIUM - HANDICAP_MAX == MIN_REQUIRED`, which held only while the clamp was 1.000 DIG.
+/// Lowering the clamp to a single base unit — so that it stops swallowing the multiplier's range —
+/// separates the two concerns: the curve sets the price, the clamp only forbids zero. Three
+/// constants still move together, so this is asserted rather than left as an arithmetic
+/// coincidence a later edit could break silently.
+#[test]
+fn the_bootstrap_price_comes_from_the_curve_and_not_the_clamp() {
+    let bootstrap_price = BOOTSTRAP_PRICE;
+    assert_eq!(bootstrap_price, 1_000, "the bootstrap price is 1.000 DIG");
+
+    // And the composed function agrees, so the property is one of the code and not only of the
+    // constants.
     let epoch1 = EpochRecord::bootstrap();
-    assert_eq!(epoch1.handicap_mojos, HANDICAP_MAX_MOJOS);
+    assert_eq!(epoch1.handicap_dig_base_units, HANDICAP_MAX_DIG_BASE_UNITS);
+    assert_eq!(epoch1.required_per_store_dig_base_units, bootstrap_price);
     assert_eq!(
-        epoch1.required_per_store_mojos,
-        MIN_REQUIRED_PER_STORE_MOJOS
-    );
-    assert_eq!(
-        epoch1.base_mojos - epoch1.handicap_mojos,
-        MIN_REQUIRED_PER_STORE_MOJOS,
-        "the floor must be reached by the subsidy, not imposed by the clamp on top of it"
+        epoch1.base_price_dig_base_units - epoch1.handicap_dig_base_units,
+        bootstrap_price,
+        "the bootstrap price must be reached by the subsidy, not imposed by the clamp on top of it"
     );
 }
 
@@ -62,7 +75,7 @@ fn no_safety_margin_preset_moves_the_multiplier() {
         let start_multiplier = record.multiplier_micros;
 
         for epoch in (record.epoch + 1)..=(record.epoch + EPOCHS) {
-            let posted = apply_safety_margin(record.required_per_store_mojos, margin_bp);
+            let posted = apply_safety_margin(record.required_per_store_dig_base_units, margin_bp);
             record = record
                 .advance(EpochCensus {
                     epoch,
@@ -188,14 +201,14 @@ fn the_handicap_never_inverts() {
     for owners in 0..=(HANDICAP_ZERO_AT_OWNERS * 3) {
         let handicap = handicap_for_owners(owners);
         assert!(
-            handicap <= HANDICAP_MAX_MOJOS,
+            handicap <= HANDICAP_MAX_DIG_BASE_UNITS,
             "handicap at {owners} owners exceeds the maximum subsidy"
         );
         if owners >= HANDICAP_ZERO_AT_OWNERS {
             assert_eq!(handicap, 0, "the subsidy must be gone at {owners} owners");
         }
         assert!(
-            required_per_store(MULT_SCALE, owners) <= EQUILIBRIUM_PER_STORE_MOJOS,
+            required_per_store(MULT_SCALE, owners) <= EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS,
             "at 1.0x the requirement can never exceed the equilibrium price"
         );
     }
@@ -203,7 +216,7 @@ fn the_handicap_never_inverts() {
     assert_eq!(handicap_for_owners(u64::MAX), 0);
     assert_eq!(
         required_per_store(MULT_SCALE, u64::MAX),
-        EQUILIBRIUM_PER_STORE_MOJOS
+        EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS
     );
 }
 
@@ -274,12 +287,12 @@ fn stable_seed(stores: u64, owners: u64) -> EpochRecord {
         locked: stores * required_per_store(MULT_SCALE, owners),
     };
     record.multiplier_micros = MULT_SCALE;
-    record.handicap_mojos = handicap_for_owners(owners);
-    record.base_mojos = EQUILIBRIUM_PER_STORE_MOJOS;
-    record.required_per_store_mojos = required_per_store(MULT_SCALE, owners);
+    record.handicap_dig_base_units = handicap_for_owners(owners);
+    record.base_price_dig_base_units = EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS;
+    record.required_per_store_dig_base_units = required_per_store(MULT_SCALE, owners);
 
     assert_eq!(
-        record.required_per_store_mojos, EQUILIBRIUM_PER_STORE_MOJOS,
+        record.required_per_store_dig_base_units, EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS,
         "the seed is past the handicap, so its requirement is the equilibrium price"
     );
     record

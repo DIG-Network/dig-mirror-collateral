@@ -29,4 +29,29 @@ pub enum CollateralError {
         /// The epoch the supplied census actually describes.
         found: u64,
     },
+
+    /// An epoch is governed by a ruleset this build does not implement.
+    ///
+    /// This is the fail-closed refusal of [`crate::version`], and it must be propagated rather
+    /// than handled by substituting the newest known ruleset. Falling back looks like success: the
+    /// node computes a plausible requirement, disagrees with the network, and — because a coin
+    /// below the real requirement is simply not counted — its operator's stores stop earning while
+    /// every surface reports health. A refusal is visible; a wrong answer is not.
+    #[error(
+        "epoch is governed by protocol version {version}, which this build does not implement"
+    )]
+    UnknownProtocolVersion {
+        /// The version the epoch or the record is governed by.
+        version: u16,
+    },
+
+    /// No row of the activation schedule covers this epoch.
+    ///
+    /// Epochs are one-based and the schedule's first row governs epoch 1, so in practice this is
+    /// epoch 0: an epoch that does not exist rather than one whose rules are missing.
+    #[error("no protocol version governs epoch {epoch}")]
+    EpochNotGoverned {
+        /// The epoch no ruleset was found for.
+        epoch: u64,
+    },
 }

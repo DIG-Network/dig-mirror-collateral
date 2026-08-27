@@ -1,10 +1,10 @@
 //! The bootstrap handicap: a subsidy that shrinks as the network gains verified owners.
 
-use crate::constants::{HANDICAP_MAX_MOJOS, HANDICAP_ZERO_AT_OWNERS};
+use crate::constants::{HANDICAP_MAX_DIG_BASE_UNITS, HANDICAP_ZERO_AT_OWNERS};
 
-/// The per-store subsidy, in DIG mojos, at a given count of verified owners.
+/// The per-store subsidy, in DIG base units, at a given count of verified owners.
 ///
-/// The curve is linear from [`HANDICAP_MAX_MOJOS`] at zero owners to zero at
+/// The curve is linear from [`HANDICAP_MAX_DIG_BASE_UNITS`] at zero owners to zero at
 /// [`HANDICAP_ZERO_AT_OWNERS`], and flat at zero above that.
 ///
 /// Linear rather than convex or concave: a convex curve withdraws the subsidy hardest across the
@@ -32,5 +32,5 @@ pub const fn handicap_for_owners(owners: u64) -> u64 {
         HANDICAP_ZERO_AT_OWNERS
     };
     let remaining = HANDICAP_ZERO_AT_OWNERS - counted;
-    HANDICAP_MAX_MOJOS * remaining / HANDICAP_ZERO_AT_OWNERS
+    HANDICAP_MAX_DIG_BASE_UNITS * remaining / HANDICAP_ZERO_AT_OWNERS
 }
