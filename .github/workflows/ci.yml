@@ -77,6 +77,14 @@ jobs:
         # tests as "flaky" in its summary — surfaces flake without hiding it.
         run: cargo nextest run --workspace --all-features --retries 2
 
+      - name: cargo nextest run --workspace --release
+        # This crate's contract is that two independent implementations compute identical
+        # integers. Arithmetic that panics in debug can return a wrong value in release —
+        # the exact defect found in review round 1 (saturation_micros panicked in debug and
+        # returned 4611686018427387903 in release). A debug-only suite cannot see that class,
+        # so the suite runs under both profiles.
+        run: cargo nextest run --workspace --all-features --retries 2 --release
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
