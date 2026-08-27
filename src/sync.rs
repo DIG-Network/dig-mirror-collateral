@@ -39,9 +39,10 @@ pub struct SyncSamplePlan {
 ///
 /// The sample size plateaus at [`SYNC_MAX_SAMPLE`] and never grows, because the hypergeometric
 /// tail is bounded above by the binomial one and the binomial one does not depend on the
-/// population. At the plateau, six agreeing responses out of nine gives 99.7% confidence under
-/// the stated 80%-honest assumption; the finite-population correction only helps, and at a
-/// population of 20 it makes six dishonest responses outright impossible.
+/// population. At the plateau, seven agreeing responses out of nine gives 99.97% confidence
+/// **under the assumption that at most 20% of the chain-derived population is dishonest** — the
+/// figure is meaningless without that assumption beside it. The finite-population correction only
+/// helps, and at a population of 20 it makes seven dishonest responses outright impossible.
 ///
 /// ```
 /// use dig_mirror_collateral::sync_sample_plan;
@@ -51,7 +52,7 @@ pub struct SyncSamplePlan {
 ///
 /// let plateau = sync_sample_plan(27);
 /// assert_eq!(plateau.sample_size, 9);
-/// assert_eq!(plateau.agreement_threshold, 6);
+/// assert_eq!(plateau.agreement_threshold, 7);
 /// assert!(!plateau.advisory_only);
 /// ```
 #[must_use]
@@ -71,27 +72,28 @@ pub fn sync_sample_plan(population: u64) -> SyncSamplePlan {
     }
 }
 
-/// How many of a `sample_size` sample must agree: two thirds, rounded up.
+/// How many of a `sample_size` sample must agree: a strict two-thirds supermajority.
 ///
-/// **The specification is internally inconsistent here and this resolves it deliberately.**
-/// Section 9 of the decision writes `threshold(k) = floor(2 * k / 3) + 1` and annotates it
-/// `// 6 when k = 9`, but that expression yields **7** at `k = 9`, because `2 * 9 / 3` divides
-/// exactly and the `+ 1` then overshoots. The two readings differ only when `k` is a multiple of
-/// three, which is precisely the plateau case.
+/// `threshold(k) = floor(2 * k / 3) + 1`, clamped to at least 1. This is the recognised
+/// strict-supermajority form: `ceil(2 * k / 3)` would accept *exactly* two thirds, and the two
+/// readings differ precisely when `k` is a multiple of three — which is the plateau case `k = 9`.
 ///
-/// The value 6 is taken, because it is what the rest of the section is built on: the confidence
-/// table computes `P(X >= 6) = 0.0031` for the chosen threshold, and the epoch-8 worked example
-/// argues that six dishonest responses cannot be drawn from five dishonest owners. Encoding 7
-/// would leave the published 99.7% figure describing a threshold the code does not use, and
-/// section 14 says these numbers are fixed so the confidence claim stays *auditable*.
+/// Section 9 of the decision on `DIG-Network/dig_ecosystem#3173` originally annotated the formula
+/// `// 6 when k = 9`, which the expression contradicts. The ruling on that issue kept the formula
+/// and corrected the documentation, because failing to converge is safe here: the sample is
+/// advisory and chain is the source of truth, so an over-strict threshold costs a re-derivation
+/// rather than a wrong answer. At the plateau the threshold is 7 of 9, giving 99.97% confidence
+/// under the assumption that at most 20% of the population is dishonest.
 ///
-/// This is not consensus — the sampled value is recomputable from chain, so a node using the
-/// other reading is differently confident rather than forked. Reported upstream regardless.
+/// The floor of 1 is load-bearing and here it is structural: the `+ 1` makes `k = 0` yield 1
+/// rather than 0, where 0 would read as *adopt anything, on no evidence*. A future
+/// simplification to `ceil(2 * k / 3)` would silently reintroduce that, so the degenerate case is
+/// pinned by test rather than left to the reader.
+///
+/// For small `k` the strict form demands near-unanimity — `k = 3` needs all three. That is
+/// acceptable **because** populations below [`SYNC_MIN_POPULATION`] are advisory-only: a node
+/// there derives the epoch from chain regardless, so a sample that cannot converge costs nothing.
 const fn agreement_threshold(sample_size: u64) -> u64 {
-    let two_thirds_rounded_up = (2 * sample_size).div_ceil(3);
-    if two_thirds_rounded_up == 0 {
-        1
-    } else {
-        two_thirds_rounded_up
-    }
+    // Floor division, then `+ 1`: strictly more than two thirds, and never zero.
+    (2 * sample_size) / 3 + 1
 }

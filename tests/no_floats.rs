@@ -68,9 +68,15 @@ fn no_source_file_mentions_a_float_type() {
     );
 }
 
-/// The guard itself is load-bearing, so it is checked against source it must reject and source it
-/// must not. Without this, a scanner that matched nothing at all would look identical to a clean
-/// crate.
+/// The guard itself is load-bearing, so it is checked in **both** directions: against source it
+/// must reject, and against look-alikes it must not. Without the false-positive half, a scanner
+/// that matched nothing at all would look identical to a clean crate; without the false-negative
+/// half, an over-eager token match would fire on `deadbeef32`.
+///
+/// This test is the reason the source scan is not redundant beside
+/// `#![forbid(clippy::float_arithmetic)]` in `lib.rs`. That lint catches float *arithmetic*, only
+/// when clippy runs, and says nothing about a float that is merely stored, parsed or printed —
+/// each of which is enough to fork two implementations by one ULP. Do not delete either half.
 #[test]
 fn the_guard_detects_a_float_and_ignores_a_look_alike() {
     assert!(!float_type_hits("let x: f64 = 1.0;").is_empty());

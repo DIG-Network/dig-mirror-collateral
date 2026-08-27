@@ -195,15 +195,31 @@ it from `1.0x` requires 118 consecutive maximum up-steps.
 ```
 D_max(N)     = floor(N / SYNC_ASSUMED_DISHONEST_DENOM)
 k(N)         = if N < SYNC_MIN_POPULATION then N else min(N, SYNC_MAX_SAMPLE)
-threshold(k) = ceil(2 * k / 3), and never less than 1
+threshold(k) = floor(2 * k / 3) + 1     // a strict supermajority; never less than 1
 ```
 
 `N` is `owners(n)`, the chain-derived count of distinct collateralised owner hashes. There is
 exactly one definition of "verified node" in this design and the handicap, the sampling population
 and the displayed owner count all share it.
 
-At the plateau `k = 9`, `threshold = 6`, giving 99.7% confidence under the stated assumption that at
-most 20% of the population is dishonest. The finite-population correction only helps.
+At the plateau `k = 9`, `threshold = 7`, giving **99.97% confidence under the assumption that at
+most 20% of the chain-derived population is dishonest**. That assumption travels with the figure
+wherever the figure appears: a confidence number without it is not a claim. The finite-population
+correction only helps.
+
+`floor(2 * k / 3) + 1` is the strict-supermajority form: it requires *more* than two thirds, where
+`ceil(2 * k / 3)` would accept exactly two thirds. The two readings differ only when `k` is a
+multiple of three, which is precisely the plateau. The strict form is chosen because failing to
+converge is safe here — the sample is advisory and chain is the source of truth, so an over-strict
+threshold costs a re-derivation, never a wrong answer.
+
+The `+ 1` also makes the floor of 1 structural: at `k = 0` the literal two-thirds reading yields a
+threshold of 0, which reads as *adopt anything, on no evidence*.
+
+For small `k` the strict form demands near-unanimity — `k = 3` requires all three. This is
+acceptable **because** populations below `SYNC_MIN_POPULATION` are advisory-only: the node derives
+the epoch from chain regardless, so a sample that cannot converge there costs a re-derivation it
+was already going to perform.
 
 For `N < SYNC_MIN_POPULATION` the sample is **advisory only**: it is the assumption that fails
 rather than the statistics, and the node MUST derive the epoch from chain regardless.
@@ -211,13 +227,6 @@ rather than the statistics, and the node MUST derive the epoch from chain regard
 The sampled data is **derived, not authoritative**. Chain is the source of truth. A node that
 disagrees with its sample MUST prefer its own computation. The sample buys only the ability to skip
 an expensive historical re-derivation; it never buys the right to be wrong.
-
-> **Known divergence from the source decision.** Section 9 of the decision on
-> `DIG-Network/dig_ecosystem#3173` writes `threshold(k) = floor(2 * k / 3) + 1` and annotates it
-> `// 6 when k = 9`; that expression yields **7**, not 6. This specification takes **6**, because
-> the confidence table (`P(X >= 6) = 0.0031`) and the epoch-8 worked example are both built on it.
-> The two readings differ only when `k` is a multiple of three. This is not consensus, so a node on
-> the other reading is differently confident rather than forked.
 
 ## 10. Conformance
 

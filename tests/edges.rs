@@ -108,6 +108,10 @@ fn the_sample_plan_plateaus_and_flags_its_own_assumption() {
         "query the whole population when it is tiny"
     );
     assert!(tiny.advisory_only);
+    assert_eq!(
+        tiny.agreement_threshold, 3,
+        "the strict supermajority form demands unanimity at k = 3; that is tolerable only          because a population this small is advisory-only and the node derives from chain"
+    );
 
     let boundary = sync_sample_plan(SYNC_MIN_POPULATION);
     assert!(
@@ -115,7 +119,7 @@ fn the_sample_plan_plateaus_and_flags_its_own_assumption() {
         "the boundary is inclusive-from-below"
     );
     assert_eq!(boundary.sample_size, SYNC_MAX_SAMPLE);
-    assert_eq!(boundary.agreement_threshold, 6);
+    assert_eq!(boundary.agreement_threshold, 7);
     assert_eq!(boundary.max_assumed_dishonest, 4);
     assert!(
         boundary.agreement_threshold > boundary.max_assumed_dishonest,
@@ -129,7 +133,7 @@ fn the_sample_plan_plateaus_and_flags_its_own_assumption() {
     for population in [21u64, 27, 1_000, u64::MAX] {
         let plan = sync_sample_plan(population);
         assert_eq!(plan.sample_size, SYNC_MAX_SAMPLE);
-        assert_eq!(plan.agreement_threshold, 6);
+        assert_eq!(plan.agreement_threshold, 7);
         assert!(!plan.advisory_only);
     }
 
