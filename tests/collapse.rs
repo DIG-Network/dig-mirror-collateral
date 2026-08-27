@@ -14,7 +14,8 @@
 //! one. A test asserting the resulting value exactly would fail under *either* mutation and could
 //! only report "something in the collapse region broke".
 //!
-//! So each test bounds the outcome from one side only, in opposite directions:
+//! So the two *diagnostic* tests below bound the outcome from one side only, in opposite
+//! directions:
 //!
 //! | mutation | observed | `>= MIN` (floor test) | `<= MIN` (saturation test) |
 //! |---|---|---|---|
@@ -23,7 +24,13 @@
 //! | `saturating_sub` -> `-` | `u64::MAX`-ish (release) | passes | **fails** |
 //!
 //! Together the two bounds pin the value exactly; separately each names its own guard. Preserve
-//! that property — collapsing them into one `assert_eq!` collapses two proofs into one.
+//! that property — collapsing them into one `assert_eq!` collapses two proofs into one. Verified
+//! by mutation: deleting the clamp fails only the first, and replacing `saturating_sub` with a
+//! wrapping one fails only the second.
+//!
+//! `the_deepest_contraction_costs_one_base_unit` is deliberately *not* part of that pair. It
+//! asserts the exact value and so fails under either mutation, which is what makes it a statement
+//! about the model's cheapest reachable price rather than about one guard.
 
 use dig_mirror_collateral::{
     required_per_store, EpochCensus, EpochRecord, MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS,
