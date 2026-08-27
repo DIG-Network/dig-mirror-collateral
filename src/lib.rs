@@ -24,7 +24,12 @@
 //!   round-half-up. The single exception is [`apply_safety_margin`], which rounds up and is not
 //!   consensus.
 //! - **`u128` intermediates and saturating narrowing.** An overflow that panics on one node and
-//!   wraps on another is the same fork by another route, so there is no panicking path.
+//!   wraps on another is the same fork by another route, so there is no panicking path — not on
+//!   the recurrence, and not on any argument the public signatures admit. The widening sits at the
+//!   boundary of each public function rather than at the boundary of the values the recurrence
+//!   happens to produce, because a caller reaching one of them directly is doing exactly what its
+//!   signature invites. `tests/overflow.rs` asserts the saturated answers, so it fails under
+//!   `debug` by panic and under `release` by a wrong number.
 //! - **An empty network is neutral, not an error.** Both degenerate denominators return exactly
 //!   1.0x, so a network with nothing in it holds the price rather than refusing to compute one.
 //!

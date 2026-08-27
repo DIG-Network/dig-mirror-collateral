@@ -68,10 +68,16 @@ impl EpochRecord {
     ///
     /// Returns [`CollateralError::NonSequentialEpoch`] when the census does not describe exactly
     /// the epoch after this record. The recurrence is defined only for consecutive epochs, and
-    /// applying it to a gap would silently produce a requirement no other node computes.
+    /// applying it to a gap would silently produce a requirement no other node computes. The
+    /// terminal epoch `u64::MAX` has no successor and so never advances.
     pub fn advance(&self, census: EpochCensus) -> Result<Self, CollateralError> {
-        let expected = self.epoch + 1;
-        if census.epoch != expected {
+        // Saturating rather than `+ 1`: every field of `EpochRecord` is `pub`, so a caller can
+        // hand us the terminal epoch directly. There `+ 1` panics under `debug` and wraps to 0
+        // under `release` — and a wrapped 0 then *equals* a census for epoch 0, so the guard
+        // below would wave through a census that follows nothing. The second condition holds
+        // only at saturation, where it keeps the terminal epoch from advancing onto itself.
+        let expected = self.epoch.saturating_add(1);
+        if census.epoch != expected || expected == self.epoch {
             return Err(CollateralError::NonSequentialEpoch {
                 expected,
                 found: census.epoch,

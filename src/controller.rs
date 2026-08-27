@@ -95,10 +95,19 @@ pub fn volume_micros(locked_now: u64, stores_now: u64, required_per_store_prev: 
 }
 
 /// Combine the two signals into the single reading the controller bands.
+///
+/// The weighted sum is accumulated in `u128` and narrowed by `clamp_signal`, the same
+/// saturating narrowing the two signal functions use. Within the recurrence both arguments have
+/// already been clamped to [`SIGNAL_CAP_MICROS`] by the time they arrive, so the widening is
+/// unobservable there — but this function is public, and a caller reaching it directly is doing
+/// something its signature invites. In `u64` the weighted sum overflows above `u64::MAX / 3`,
+/// which panics under `debug` and wraps under `release`: the one divergence this crate exists to
+/// forbid, since a node that panics where another wraps has forked by another route.
 #[must_use]
-pub const fn saturation_micros(participation_micros: u64, volume_micros: u64) -> u64 {
-    (PARTICIPATION_WEIGHT * participation_micros + VOLUME_WEIGHT * volume_micros)
-        / SIGNAL_WEIGHT_TOTAL
+pub fn saturation_micros(participation_micros: u64, volume_micros: u64) -> u64 {
+    let weighted = u128::from(PARTICIPATION_WEIGHT) * u128::from(participation_micros)
+        + u128::from(VOLUME_WEIGHT) * u128::from(volume_micros);
+    clamp_signal(weighted / u128::from(SIGNAL_WEIGHT_TOTAL))
 }
 
 /// Derive all three signals for an epoch from its census and the previous epoch's state.

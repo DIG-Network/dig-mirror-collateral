@@ -183,9 +183,23 @@ rather than by a fallible or panicking conversion:
 | `locked(n) * MULT_SCALE` | ~1e21 — exceeds 64 bits, and is why all ratio math is 128-bit |
 | `required_total_prev(n)` | ~4.3e24 |
 | `EQUILIBRIUM_PER_STORE_MOJOS * multiplier_micros(n)` | ~5e15 |
+| `PARTICIPATION_WEIGHT * participation_micros(n) + VOLUME_WEIGHT * volume_micros(n)` | ~4e8 within the recurrence, where both signals are already clamped to `SIGNAL_CAP_MICROS` |
+| `required_per_store(n) * (BASIS_POINTS_SCALE + margin_bp)` | ~5e19 at the presets of section 7 — not consensus, but see below |
 
 An overflow that panics on one node and wraps on another is a fork by another route. There MUST be
 no panicking path.
+
+The bounds above are the ones the recurrence produces. They are **not** the bounds an implementation
+may assume, because each of these quantities is computed by a routine an implementation exposes, and
+a caller reaching such a routine directly supplies arguments the recurrence never would. The
+weighted signal sum is the sharp case: within the recurrence both signals are clamped and it cannot
+exceed `4 * SIGNAL_CAP_MICROS`, yet the same expression over unclamped 64-bit arguments exceeds 64
+bits above `u64::MAX / (PARTICIPATION_WEIGHT + VOLUME_WEIGHT)`. Widen and saturate at the boundary
+of the routine, not at the boundary of the values the caller was expected to pass.
+
+The safety margin of section 7 is not consensus, but it MUST saturate for a second reason: an
+unchecked product wraps a large margin into a *smaller* posted amount, which is the one direction a
+margin must never fail in.
 
 `MULT_CEILING_MICROS` is a **representational** saturation bound, not an economic ceiling: reaching
 it from `1.0x` requires 118 consecutive maximum up-steps.
