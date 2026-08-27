@@ -115,7 +115,7 @@ fn no_safety_margin_preset_moves_the_multiplier() {
     }
 }
 
-/// Property 2b — and the largest preset has real headroom, not a one-mojo escape.
+/// Property 2b — and the largest preset has real headroom, not a one-base-unit escape.
 ///
 /// The dead band's upper edge is the single most load-bearing constant here. Placing it at the
 /// largest preset exactly would let any noise above that preset fire the ratchet, so the margin
