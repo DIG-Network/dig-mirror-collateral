@@ -1,0 +1,18 @@
+[package]
+name = "dig-mirror-collateral"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75.0"
+description = "Deterministic per-epoch DIG mirror-coin collateral requirement: equilibrium x multiplier minus bootstrap handicap, in pure integer arithmetic"
+license = "MIT"
+authors = ["DIG Network"]
+repository = "https://github.com/DIG-Network/dig-mirror-collateral"
+keywords = ["dig", "collateral", "consensus", "mirror", "chia"]
+categories = ["cryptography::cryptocurrencies", "no-std::no-alloc"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+[dev-dependencies]
+serde_json = "1"
