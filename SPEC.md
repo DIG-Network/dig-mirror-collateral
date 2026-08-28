@@ -354,3 +354,5 @@ version that computed it (section 2a).
 This crate is pure arithmetic. It performs no chain reads, no I/O, and depends on no DIG or Chia
 crate. The census (`dig-mirror-coin`), the per-epoch database and the gossip service (`dig-node`),
 and the margin UI (`dign`, DIG App) are specified elsewhere.
+
+<!-- R2: multiplier floor raise in progress (dig_ecosystem#3173) -->
