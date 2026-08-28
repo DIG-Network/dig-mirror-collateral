@@ -39,7 +39,7 @@ and what an implementation MUST do about one it does not have.
 | `EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS` | `5_000` | load-bearing |
 | `MULT_SCALE` | `1_000_000` | arbitrary but fixed |
 | `MULT_BOOTSTRAP_MICROS` | `1_000_000` | arbitrary but fixed |
-| `MULT_FLOOR_MICROS` | `1_000` | load-bearing |
+| `MULT_FLOOR_MICROS` | `20_000` | load-bearing |
 | `MULT_CEILING_MICROS` | `1_000_000_000_000` | arbitrary but fixed |
 | `DEADBAND_LOW_MICROS` | `950_000` | load-bearing |
 | `DEADBAND_HIGH_MICROS` | `1_100_000` | load-bearing |
@@ -64,9 +64,25 @@ so.
 `MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS` is **one base unit** and MUST NOT be raised to act as a
 price floor. It is applied after the multiplier, so any larger value collapses every multiplier
 below `value / EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS` onto a single price. At `1_000` that was every
-multiplier under `0.200x`, which made `MULT_FLOOR_MICROS` unreachable and three orders of magnitude
-of the stated multiplier range indistinguishable. The lever for how far a contracting network price
+multiplier under `0.200x`, which made `MULT_FLOOR_MICROS` unreachable and the whole bottom of the
+stated multiplier range indistinguishable. The lever for how far a contracting network price
 may fall is `MULT_FLOOR_MICROS`.
+
+`MULT_FLOOR_MICROS` is `20_000` (`0.020x`), and the two floors are load-bearing in **different
+regimes**. Where the handicap has fully decayed the multiplier floor alone sets the price, so a
+per-store requirement at the floor is `0.100` DIG. Where the handicap is at its maximum it exceeds
+the scaled price at any multiplier near the floor, so `MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS` sets
+the price instead, and a bootstrapping network at the floor pays `0.001` DIG. An implementation
+that reproduces one of those two figures but not the other has applied the wrong floor.
+
+The value is `0.020x` rather than a lower bound because the floor state must retain a nonzero cost
+per counted advertisement. The census is the controller's only input, and a floor that priced an
+identity near zero would make those inputs forgeable in exactly the deeply contracted state that
+reaching the floor implies. `0.020x` is arbitrary within roughly `0.020x`-`0.050x`, and it is the
+bottom of that band: a mature per-store requirement at the floor MUST be at least `0.100` DIG,
+which no lower multiplier floor satisfies. What is load-bearing is that
+`MULT_FLOOR_MICROS * EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS / MULT_SCALE` remains well above
+`MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS`.
 
 ## 2a. Protocol versions
 

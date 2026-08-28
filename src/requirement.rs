@@ -26,7 +26,7 @@ pub fn base_per_store(multiplier_micros: u64) -> u64 {
 ///
 /// The clamp is a single base unit, so it does nothing but forbid a requirement of zero. It is
 /// deliberately not a price floor: applied after the multiplier, any larger value would flatten
-/// the bottom of the multiplier's range and make requirements that differ by three orders of
+/// the bottom of the multiplier's range and make requirements that differ by an order of
 /// magnitude compare equal. The price a contracting network falls to is decided by
 /// [`crate::constants::MULT_FLOOR_MICROS`], which is the bound that is *about* price.
 ///
@@ -41,9 +41,11 @@ pub fn base_per_store(multiplier_micros: u64) -> u64 {
 /// assert_eq!(required_per_store(1_000_000, 0), 1_000); // 1.000 DIG
 /// // Fully grown: the subsidy is gone and the requirement is the equilibrium price.
 /// assert_eq!(required_per_store(1_000_000, 1_000), 5_000); // 5.000 DIG
-/// // Deep contraction stays expressible: 0.05x and 0.001x are not the same price.
+/// // Deep contraction stays expressible: 0.05x and 0.02x are not the same price.
 /// assert_eq!(required_per_store(50_000, 1_000), 250); // 0.250 DIG
-/// assert_eq!(required_per_store(1_000, 1_000), 5); // 0.005 DIG
+/// assert_eq!(required_per_store(20_000, 1_000), 100); // 0.100 DIG, the multiplier floor
+/// // The floor is a *mature*-regime bound. At bootstrap the subsidy still swallows it whole.
+/// assert_eq!(required_per_store(20_000, 0), 1); // 0.001 DIG
 /// ```
 #[must_use]
 pub fn required_per_store(multiplier_micros: u64, owners: u64) -> u64 {
