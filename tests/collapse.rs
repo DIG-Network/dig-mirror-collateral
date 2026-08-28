@@ -208,12 +208,25 @@ fn the_mature_floor_state_still_costs_a_real_price() {
 /// The regime is genuine rather than contrived: with no verified owners the subsidy is at its
 /// maximum, it exceeds the scaled price at every multiplier at or near the floor, and the amount
 /// clamp is therefore the only thing setting the result.
+/// The concrete `1` is asserted **beside** the symbolic form rather than instead of it, and the
+/// two catch different things. The symbolic assertion says the clamp is what produced the value;
+/// the concrete one says the clamp is still a single base unit. Only the concrete assertion
+/// survives a mutation that raises `MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS` itself — a purely
+/// symbolic comparison moves with the constant under test and passes, which is exactly the wrong
+/// fix this test exists to catch. Found by mutation: with only the symbolic form, raising that
+/// constant to `100` left this test green.
 #[test]
 fn bootstrap_at_the_floor_still_costs_one_base_unit() {
+    let at_bootstrap = required_per_store(MULT_FLOOR_MICROS, 0);
+
     assert_eq!(
-        required_per_store(MULT_FLOOR_MICROS, 0),
-        MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS,
+        at_bootstrap, MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS,
         "the multiplier floor must not reach the bootstrap regime: the full subsidy still \
-         saturates the scaled price to zero, and the amount clamp lifts it to one base unit"
+         saturates the scaled price to zero, and the amount clamp lifts it to the amount floor"
+    );
+    assert_eq!(
+        at_bootstrap, 1,
+        "and that amount floor is still one base unit (0.001 DIG): raising it is the wrong lever \
+         for the floor-state price, and would make joining a new network dramatically dearer"
     );
 }
