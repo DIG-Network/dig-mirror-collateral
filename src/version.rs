@@ -107,8 +107,10 @@ pub struct Activation {
 
 /// The activation schedule: which ruleset governs which epoch, for all time.
 ///
-/// Ordered by `first_epoch`, strictly ascending, with strictly ascending versions — an invariant
-/// the tests assert rather than leave to the reader, because [`version_for_epoch_in`] relies on it.
+/// Ordered by `first_epoch`, strictly ascending, with strictly ascending versions. That ordering is
+/// a **precondition of [`version_for_epoch_in`]**, not a stylistic preference, and it is enforced at
+/// compile time by [`schedule_is_strictly_ascending`] below: an unordered row would make the reverse
+/// scan return the wrong ruleset for a range of epochs, which is a fork.
 ///
 /// Epochs are one-based, so the first row governs epoch 1 and there is no ungoverned epoch above
 /// it. A future ruleset is added as a row here with an activation epoch far enough ahead that every
@@ -118,6 +120,48 @@ pub const ACTIVATION_SCHEDULE: &[Activation] = &[Activation {
     version: ProtocolVersion::V1,
     first_epoch: 1,
 }];
+
+/// Whether `schedule` ascends strictly in both activation epoch and version.
+///
+/// This is the precondition [`version_for_epoch_in`] relies on, written as a `const fn` so that the
+/// schedule this build ships can be checked *before the build exists* rather than by a test that
+/// happens to run. The distinction matters: with one row today, any `windows(2)` assertion over the
+/// real schedule is vacuous, so the person who adds version 2 is the person who would first trip an
+/// unchecked precondition — and what an unordered row produces is not an error but a silently wrong
+/// ruleset for a range of epochs.
+///
+/// Strictness is deliberate on both fields. Equal `first_epoch` rows would resolve last-writer-wins
+/// with no complaint, and a version that did not ascend with its activation epoch would mean a
+/// later epoch was governed by an earlier ruleset.
+#[must_use]
+pub const fn schedule_is_strictly_ascending(schedule: &[Activation]) -> bool {
+    let mut i = 1;
+    while i < schedule.len() {
+        let previous = schedule[i - 1];
+        let current = schedule[i];
+        if previous.first_epoch >= current.first_epoch || previous.version.0 >= current.version.0 {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+// The precondition of `version_for_epoch_in`, evaluated by the compiler against the schedule this
+// build actually ships. It lives in `src` rather than in a test so that `cargo build` and
+// `cargo package` evaluate it too — a schedule that cannot be published is stronger than one that
+// merely fails a suite someone has to run.
+const _: () = assert!(
+    schedule_is_strictly_ascending(ACTIVATION_SCHEDULE),
+    "ACTIVATION_SCHEDULE rows must ascend strictly in both first_epoch and version"
+);
+
+// Epochs are one-based, so the first row must govern epoch 1: an ungoverned epoch below the first
+// activation is a refusal for a real epoch, not for the non-existent epoch 0.
+const _: () = assert!(
+    !ACTIVATION_SCHEDULE.is_empty() && ACTIVATION_SCHEDULE[0].first_epoch == 1,
+    "ACTIVATION_SCHEDULE must be non-empty and its first row must govern epoch 1"
+);
 
 /// The ruleset that governs `epoch`, under the schedule this build carries.
 ///

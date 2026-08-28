@@ -98,5 +98,6 @@ pub use record::EpochRecord;
 pub use requirement::{base_per_store, required_per_store};
 pub use sync::{sync_sample_plan, SyncSamplePlan};
 pub use version::{
-    version_for_epoch, version_for_epoch_in, Activation, ProtocolVersion, ACTIVATION_SCHEDULE,
+    schedule_is_strictly_ascending, version_for_epoch, version_for_epoch_in, Activation,
+    ProtocolVersion, ACTIVATION_SCHEDULE,
 };

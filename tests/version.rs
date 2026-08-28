@@ -7,8 +7,8 @@
 //! hypothetical schedule is not a stand-in for the real test, it *is* the real case.
 
 use dig_mirror_collateral::{
-    version_for_epoch, version_for_epoch_in, Activation, CollateralError, EpochCensus, EpochRecord,
-    ProtocolVersion, ACTIVATION_SCHEDULE,
+    schedule_is_strictly_ascending, version_for_epoch, version_for_epoch_in, Activation,
+    CollateralError, EpochCensus, EpochRecord, ProtocolVersion, ACTIVATION_SCHEDULE,
 };
 
 /// A version the network might activate and this build does not implement.
@@ -48,16 +48,103 @@ fn the_activation_schedule_is_ordered_and_starts_at_epoch_one() {
         "epochs are one-based, so the first row must govern epoch 1 and leave no ungoverned epoch"
     );
 
-    for pair in ACTIVATION_SCHEDULE.windows(2) {
-        assert!(
-            pair[0].first_epoch < pair[1].first_epoch,
-            "activation epochs must strictly ascend"
-        );
-        assert!(
-            pair[0].version < pair[1].version,
-            "versions must strictly ascend with their activation epochs"
-        );
-    }
+    assert!(
+        schedule_is_strictly_ascending(ACTIVATION_SCHEDULE),
+        "the shipped schedule must ascend strictly in both first_epoch and version"
+    );
+}
+
+/// The ordering predicate itself, exercised against schedules that violate it.
+///
+/// The assertion above is **vacuous today**: `ACTIVATION_SCHEDULE` has one row, so no comparison
+/// happens and it would pass against any predicate at all, including one that always said yes. A
+/// test whose subject is a single-row table proves nothing about ordering. This one gives the
+/// predicate multi-row fixtures — the same explicit-schedule pattern this suite already uses for
+/// boundary behaviour — so that it can fail, which is the only way it can be evidence.
+///
+/// The unordered case is not hypothetical bookkeeping. Rows `[{v2, 500}, {v1, 1}]` make
+/// `version_for_epoch_in` answer `v1` for epoch 500 and for epoch 900, because its reverse scan
+/// stops at the first row whose activation has passed. That is a wrong ruleset returned as `Ok`,
+/// which is the failure the whole module exists to prevent.
+#[test]
+fn the_ordering_predicate_rejects_every_way_a_schedule_can_be_out_of_order() {
+    let ascending = schedule_with_future_activation();
+    assert!(
+        schedule_is_strictly_ascending(&ascending),
+        "a two-row ascending schedule is the shape the reverse scan requires"
+    );
+
+    let descending: Vec<Activation> = ascending.iter().copied().rev().collect();
+    assert!(
+        !schedule_is_strictly_ascending(&descending),
+        "rows in descending activation order must be rejected: the reverse scan would return v1 \
+         for every epoch, including those the later row governs"
+    );
+
+    let duplicate_epoch = vec![
+        Activation {
+            version: ProtocolVersion::V1,
+            first_epoch: 1,
+        },
+        Activation {
+            version: FUTURE,
+            first_epoch: 1,
+        },
+    ];
+    assert!(
+        !schedule_is_strictly_ascending(&duplicate_epoch),
+        "two rows activating at the same epoch must be rejected: they resolve last-writer-wins \
+         with no complaint"
+    );
+
+    let non_ascending_version = vec![
+        Activation {
+            version: FUTURE,
+            first_epoch: 1,
+        },
+        Activation {
+            version: ProtocolVersion::V1,
+            first_epoch: 500,
+        },
+    ];
+    assert!(
+        !schedule_is_strictly_ascending(&non_ascending_version),
+        "a later epoch must not be governed by an earlier ruleset"
+    );
+
+    // Degenerate inputs the predicate must not choke on: it makes no claim about them, and the
+    // gapless-start half of the invariant is a separate compile-time assert on the real schedule.
+    assert!(schedule_is_strictly_ascending(&[]));
+    assert!(schedule_is_strictly_ascending(&ascending[..1]));
+}
+
+/// The unordered schedule the predicate rejects really does mis-select a ruleset.
+///
+/// Without this, the predicate is a rule about a table shape and nothing ties it to a consequence.
+/// This pins the consequence, so that a later refactor of the scan cannot make the ordering
+/// requirement quietly obsolete while the predicate keeps passing.
+#[test]
+fn an_unordered_schedule_selects_the_wrong_ruleset() {
+    let unordered: Vec<Activation> = schedule_with_future_activation()
+        .into_iter()
+        .rev()
+        .collect();
+
+    assert_eq!(
+        version_for_epoch_in(&unordered, 500),
+        Ok(ProtocolVersion::V1),
+        "the reverse scan stops at the first activated row, so an unordered schedule answers with \
+         the ruleset that row names — v1, where the correct answer is v2"
+    );
+    assert_eq!(
+        version_for_epoch_in(&unordered, 900),
+        Ok(ProtocolVersion::V1),
+        "and it stays wrong for every later epoch, not just at the boundary"
+    );
+    assert!(
+        !schedule_is_strictly_ascending(&unordered),
+        "which is exactly the schedule the compile-time assert forbids this build from shipping"
+    );
 }
 
 /// Every version the schedule names is one this build can execute.
