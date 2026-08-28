@@ -1,17 +1,24 @@
 # dig-mirror-collateral — normative specification
 
 This document is the contract. An independent reimplementation in any language, built against this
-document and `tests/fixtures/golden_vectors.json` alone, MUST produce byte-identical results for
-every epoch, forever.
+document and the per-version fixtures in `tests/fixtures/` alone, MUST produce byte-identical
+results for every epoch, forever.
 
 Normative keywords MUST, MUST NOT, SHOULD and MAY are used in their usual sense.
+
+Sections 3 through 8 specify **protocol version 1**. Section 2a specifies how a version is selected
+and what an implementation MUST do about one it does not have.
 
 ---
 
 ## 1. Units and types
 
-- All collateral amounts are **DIG CAT base units (mojos)**. `1 DIG = 1_000 mojos`; DIG is a CAT
-  with `decimals = 3`.
+- All collateral amounts are **DIG base units**. DIG is a CAT with `decimals = 3`, so
+  `1 DIG = DIG_BASE_UNITS_PER_DIG = 1_000` base units and the smallest expressible amount is
+  **0.001 DIG**.
+- A DIG base unit MUST NOT be called a *mojo*. A mojo is XCH's base unit, `10^-12` XCH; a DIG base
+  unit is `10^-3` DIG. The two differ by nine orders of magnitude, and every amount specified here
+  is on a money path.
 - The multiplier and every saturation signal are fixed-point micros: `1_000_000 == 1.0`.
 - Every value in the consensus path is a non-negative integer. Implementations MUST use unsigned
   64-bit values for stored quantities and unsigned 128-bit values for the intermediates named in
@@ -28,10 +35,11 @@ Normative keywords MUST, MUST NOT, SHOULD and MAY are used in their usual sense.
 
 | name | value | category |
 |---|---|---|
-| `EQUILIBRIUM_PER_STORE_MOJOS` | `5_000` | load-bearing |
+| `DIG_BASE_UNITS_PER_DIG` | `1_000` | arbitrary but fixed (the CAT denomination) |
+| `EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS` | `5_000` | load-bearing |
 | `MULT_SCALE` | `1_000_000` | arbitrary but fixed |
 | `MULT_BOOTSTRAP_MICROS` | `1_000_000` | arbitrary but fixed |
-| `MULT_FLOOR_MICROS` | `1_000` | arbitrary but fixed |
+| `MULT_FLOOR_MICROS` | `1_000` | load-bearing |
 | `MULT_CEILING_MICROS` | `1_000_000_000_000` | arbitrary but fixed |
 | `DEADBAND_LOW_MICROS` | `950_000` | load-bearing |
 | `DEADBAND_HIGH_MICROS` | `1_100_000` | load-bearing |
@@ -40,9 +48,9 @@ Normative keywords MUST, MUST NOT, SHOULD and MAY are used in their usual sense.
 | `PARTICIPATION_WEIGHT` | `3` | load-bearing |
 | `VOLUME_WEIGHT` | `1` | load-bearing |
 | `SIGNAL_CAP_MICROS` | `100_000_000` | arbitrary but fixed |
-| `HANDICAP_MAX_MOJOS` | `4_000` | load-bearing |
+| `HANDICAP_MAX_DIG_BASE_UNITS` | `4_000` | load-bearing |
 | `HANDICAP_ZERO_AT_OWNERS` | `1_000` | load-bearing |
-| `MIN_REQUIRED_PER_STORE_MOJOS` | `1_000` | load-bearing |
+| `MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS` | `1` | load-bearing |
 | `CENSUS_FINALITY_DEPTH_BLOCKS` | `32` | arbitrary but fixed |
 | `SYNC_MAX_SAMPLE` | `9` | arbitrary but fixed, not consensus |
 | `SYNC_MIN_POPULATION` | `20` | arbitrary but fixed, not consensus |
@@ -52,6 +60,81 @@ Normative keywords MUST, MUST NOT, SHOULD and MAY are used in their usual sense.
 fixed** means any value would have worked, but every node MUST agree on the one that was picked.
 Neither category may be changed casually; the second buys nothing by changing and forks by doing
 so.
+
+`MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS` is **one base unit** and MUST NOT be raised to act as a
+price floor. It is applied after the multiplier, so any larger value collapses every multiplier
+below `value / EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS` onto a single price. At `1_000` that was every
+multiplier under `0.200x`, which made `MULT_FLOOR_MICROS` unreachable and three orders of magnitude
+of the stated multiplier range indistinguishable. The lever for how far a contracting network price
+may fall is `MULT_FLOOR_MICROS`.
+
+## 2a. Protocol versions
+
+The model is a recurrence, so a rule change is never a local edit: verifying the present means
+replaying from genesis with each epoch recomputed under the rules in force **at that epoch**.
+
+An **activation schedule** maps each protocol version to the first epoch it governs. Rows MUST
+ascend strictly in both activation epoch and version, and the first row MUST govern epoch 1. An
+implementation MUST reject a schedule that violates either requirement rather than select from it:
+the selection rule below reads the *last* row that has activated, so an unordered row does not
+produce an error, it produces a wrong ruleset for a range of epochs.
+
+```
+version(n) = the version of the last schedule row with first_epoch <= n
+```
+
+- The version MUST be selected from the **epoch being computed**, and from nothing else. An
+  implementation MUST NOT select rules by its own build version, by wall-clock time, or by
+  configuration. Selecting by node version would make upgraded and un-upgraded nodes compute
+  different requirements for the same epoch during any rollout, which is the fork this design
+  exists to prevent.
+- An activation `first_epoch` is the **first epoch computed under** that version: the new rules
+  apply *at* the activation epoch, not from the epoch after it.
+- The recurrence therefore **crosses** the boundary. `required_per_store(first_epoch)` is computed
+  under the new version but consumes `required_per_store(first_epoch - 1)`, computed under the
+  previous one. A new ruleset takes the old ruleset output as its seed and MUST NOT recompute it.
+- **Every historical ruleset MUST remain implemented, permanently.** Versions are never deprecated
+  and never removed. An implementation that drops a retired ruleset can no longer derive its own
+  current state, because the replay from genesis has no rules for the early epochs.
+- Each epoch record MUST carry the version that computed it, and that version MUST travel with the
+  record over the wire, so a disagreement about which rules applied is a named mismatch rather than
+  an unexplained difference between two numbers.
+- An unknown version MUST be **representable**: a record tagged with a future version MUST parse, so
+  that an implementation can name the version it lacks.
+
+### Failing closed
+
+An implementation reaching an epoch governed, **by the schedule it carries**, by a version it does
+not implement MUST refuse, and MUST report that version. It MUST NOT fall back to its newest known
+ruleset and MUST NOT extrapolate.
+
+The qualifier is load-bearing and bounds what this refusal can cover. An implementation selects the
+version from its own schedule, so it can only refuse a version its schedule names. An implementation
+predating a new version carries neither the row nor the rules: it computes the activated epoch under
+the last version it knows, returning a plausible number with no refusal available to it, because a
+schedule cannot name a version invented after it shipped. **The two refusals therefore cover
+different cases**: this one covers an implementation that has the schedule row and not the rules,
+and the record refusal below covers a record arriving from a peer that is ahead. Neither covers an
+implementation that has not been upgraded at all, which is out of scope here (section 11) and is
+addressed only by the activation lead time required below.
+
+Falling back is the dangerous branch precisely because it appears to work: the node computes a
+plausible requirement, silently disagrees with the network, and, since a coin below the real
+requirement is simply not counted (section 3), the operator stores stop earning while every surface
+reports success. A refusal is visible; a wrong answer is not.
+
+An implementation MUST likewise refuse to extend a record whose own version it does not implement:
+continuing would substitute its own arithmetic for a seed it cannot reproduce.
+
+An activation epoch is a deadline for every operator, so a new version SHOULD be scheduled with
+enough lead time for the network to upgrade. Epochs are seven days, which makes that tractable; a
+short lead time is not recoverable.
+
+### The current schedule
+
+| version | first epoch | status |
+|---|---|---|
+| 1 | 1 | current |
 
 ## 3. Census input
 
@@ -63,7 +146,7 @@ For each epoch `n` a census yields three non-negative integers:
 - `owners(n)` — the count of distinct owner puzzle hashes across those triples. It is **not** a
   node count and **not** an operator count. Every surface displaying it MUST say "collateralised
   owners".
-- `locked(n)` — the sum, in mojos, of the amounts of the coins selected per triple.
+- `locked(n)` — the sum, in DIG base units, of the amounts of the coins selected per triple.
 
 `stores(1) = owners(1) = locked(1) = 0` by definition: no epoch precedes epoch 1, so no coin can
 declare it.
@@ -128,13 +211,13 @@ direction an attacker benefits from and every step down cheapens every future Sy
 ## 6. Handicap and requirement
 
 ```
-handicap(n) = floor( HANDICAP_MAX_MOJOS
+handicap(n) = floor( HANDICAP_MAX_DIG_BASE_UNITS
                    * (HANDICAP_ZERO_AT_OWNERS - min(owners(n), HANDICAP_ZERO_AT_OWNERS))
                    / HANDICAP_ZERO_AT_OWNERS )
 
-base(n) = floor(EQUILIBRIUM_PER_STORE_MOJOS * multiplier_micros(n) / MULT_SCALE)
+base(n) = floor(EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS * multiplier_micros(n) / MULT_SCALE)
 
-required_per_store(n) = max( MIN_REQUIRED_PER_STORE_MOJOS,
+required_per_store(n) = max( MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS,
                              saturating_sub(base(n), handicap(n)) )
 ```
 
@@ -142,12 +225,20 @@ The handicap curve is **linear** and MUST NOT be negative at any owner count. Th
 owner count is the normative form: it removes the branch in which a subsidy could become a
 surcharge.
 
-`EQUILIBRIUM_PER_STORE_MOJOS - HANDICAP_MAX_MOJOS == MIN_REQUIRED_PER_STORE_MOJOS` is a required
-identity of the constant set: at zero verified owners the requirement lands exactly on the floor, so
-the subsidy is maximal with none of it wasted below the clamp.
+`HANDICAP_MAX_DIG_BASE_UNITS < EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS` is a required property of the
+constant set. At a multiplier of `1.0` with zero verified owners the requirement is
+`EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS - HANDICAP_MAX_DIG_BASE_UNITS`, which is `1_000` base units
+(1.000 DIG). That is the **bootstrap price**, and it MUST be produced by the subsidy curve rather
+than by the clamp: a subsidy at or above the equilibrium price would hand the bootstrap price to the
+clamp and flatten the bottom of the curve, so that gaining an owner did not change the price.
 
-At a multiplier of `1.0` the whole schedule collapses to `required = 1_000 + 4 * owners` mojos for
-owners below `1_000`.
+The two guards in `required_per_store` are independent and MUST NOT be conflated. The clamp forbids
+a requirement of zero; the saturating subtraction stops a subsidy larger than the base price from
+wrapping into an enormous requirement. Both bind only in a contracting network, and no epoch of the
+section 10 vectors reaches either.
+
+At a multiplier of `1.0` the whole schedule collapses to `required = 1_000 + 4 * owners` base units
+for owners below `1_000`.
 
 ### Well-foundedness
 
@@ -165,8 +256,8 @@ locked_target = ceil( required_per_store(n) * (BASIS_POINTS_SCALE + margin_bp) /
 
 Presets: **1 bp** (0.01%), **100 bp** (1%, the default), **500 bp** (5%).
 
-This is the only ceiling division in the crate. A margin that rounds down can leave a node one mojo
-short of the requirement, which is exactly the failure it exists to prevent.
+This is the only ceiling division in the crate. A margin that rounds down can leave a node one DIG
+base unit short of the requirement, which is exactly the failure it exists to prevent.
 
 This value MUST NOT enter any census, signal, or record. The controller is deliberately built so
 that no supported preset can move the multiplier on its own: with participation neutral, volume
@@ -182,7 +273,7 @@ rather than by a fallible or panicking conversion:
 | `stores(n) * MULT_SCALE` | ~4.3e15 |
 | `locked(n) * MULT_SCALE` | ~1e21 — exceeds 64 bits, and is why all ratio math is 128-bit |
 | `required_total_prev(n)` | ~4.3e24 |
-| `EQUILIBRIUM_PER_STORE_MOJOS * multiplier_micros(n)` | ~5e15 |
+| `EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS * multiplier_micros(n)` | ~5e15 |
 | `PARTICIPATION_WEIGHT * participation_micros(n) + VOLUME_WEIGHT * volume_micros(n)` | ~4e8 within the recurrence, where both signals are already clamped to `SIGNAL_CAP_MICROS` |
 | `required_per_store(n) * (BASIS_POINTS_SCALE + margin_bp)` | ~5e19 at the presets of section 7 — not consensus, but see below |
 
@@ -244,13 +335,19 @@ an expensive historical re-derivation; it never buys the right to be wrong.
 
 ## 10. Conformance
 
-`tests/fixtures/golden_vectors.json` is the conformance contract. It carries ten epochs — bootstrap,
-growth, a 55% participation shock and recovery — with every intermediate for each. An implementation
-conforms when it reproduces every field of every epoch from the census inputs alone.
+Golden vectors are **per protocol version**. `tests/fixtures/golden_vectors_v1.json` is the
+conformance contract for version 1: ten epochs — bootstrap, growth, a 55% participation shock and
+recovery — with every intermediate for each. An implementation conforms when it reproduces every
+field of every epoch from the census inputs alone.
+
+A version set of vectors MUST be retained and MUST keep running after that version is superseded.
+They are the regression test that a later change did not rewrite history, which matters because
+verifying the present replays every past epoch under its own rules.
 
 An epoch record MUST retain its inputs and intermediates, not merely its output: divergence between
 two implementations has to be auditable, not merely detectable, and floor divisions bite in enough
-places that "somewhere in the chain" is not a usable answer.
+places that "somewhere in the chain" is not a usable answer. It MUST also retain the protocol
+version that computed it (section 2a).
 
 ## 11. Scope
 

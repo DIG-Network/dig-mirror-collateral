@@ -109,7 +109,7 @@ fn terminal_epoch_refuses_to_advance_under_both_profiles() {
 /// The margin multiplies a `u64` requirement by a `u64` margin, which leaves `u128` at the top of
 /// the range.
 ///
-/// This one is directional: the margin exists to stop a node landing a mojo short, so a wrap that
+/// This one is directional: the margin exists to stop a node landing a base unit short, so a wrap that
 /// turns the largest conceivable margin into a *smaller* posted amount fails in precisely the
 /// direction the function must never fail in. Unchecked, this returns
 /// `18_443_054_724_894_809_705` under `release` — lower than the requirement it was given.

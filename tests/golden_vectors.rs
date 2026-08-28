@@ -1,36 +1,91 @@
-//! Conformance against the golden vectors in `tests/fixtures/golden_vectors.json`.
+//! Conformance against the golden vectors in `tests/fixtures/`.
 //!
-//! The fixture is the cross-language contract, so these tests read it as data rather than
-//! restating any of its numbers. A number that appears in this file and not in the fixture is a
+//! The fixtures are the cross-language contract, so these tests read them as data rather than
+//! restating any of their numbers. A number that appears in this file and not in a fixture is a
 //! number a second implementation cannot check itself against.
+//!
+//! # One fixture per protocol version, and retired ones keep running
+//!
+//! Vectors are per-version and permanent. When a later ruleset activates, its fixture is added to
+//! [`GOLDEN_FILES`] and the earlier one stays — a retired version's vectors are the regression
+//! test that a refactor did not quietly rewrite history, which matters here because verifying the
+//! present means replaying every past epoch under the rules in force at that epoch.
 
-use dig_mirror_collateral::{apply_safety_margin, Band, EpochCensus, EpochRecord, Signals};
+use dig_mirror_collateral::{
+    apply_safety_margin, Band, EpochCensus, EpochRecord, ProtocolVersion, Signals,
+};
 use serde::Deserialize;
 
-const FIXTURE: &str = include_str!("fixtures/golden_vectors.json");
+/// Every version's vectors, oldest first. Rows are added, never removed.
+const GOLDEN_FILES: &[(ProtocolVersion, &str)] = &[(
+    ProtocolVersion::V1,
+    include_str!("fixtures/golden_vectors_v1.json"),
+)];
 
 #[derive(Debug, Deserialize)]
 struct GoldenFile {
+    protocol_version: ProtocolVersion,
     epochs: Vec<GoldenEpoch>,
 }
 
 #[derive(Debug, Deserialize)]
 struct GoldenEpoch {
     epoch: u64,
+    protocol_version: ProtocolVersion,
     census: EpochCensus,
     signals: Option<Signals>,
     band: Option<Band>,
     multiplier_micros: u64,
-    handicap_mojos: u64,
-    base_mojos: u64,
-    required_per_store_mojos: u64,
+    handicap_dig_base_units: u64,
+    base_price_dig_base_units: u64,
+    required_per_store_dig_base_units: u64,
     posted_each: u64,
 }
 
-fn golden() -> Vec<GoldenEpoch> {
-    let file: GoldenFile = serde_json::from_str(FIXTURE).expect("fixture parses");
-    assert_eq!(file.epochs.len(), 10, "the worked table covers ten epochs");
+/// Parse a fixture and check it is internally consistent about which version it describes.
+fn parse(version: ProtocolVersion, fixture: &str) -> Vec<GoldenEpoch> {
+    let file: GoldenFile = serde_json::from_str(fixture).expect("fixture parses");
+    assert_eq!(
+        file.protocol_version, version,
+        "the fixture declares a different protocol version than the table binds it to"
+    );
+    for epoch in &file.epochs {
+        assert_eq!(
+            epoch.protocol_version, version,
+            "epoch {} is tagged with a version its own fixture does not describe",
+            epoch.epoch
+        );
+    }
     file.epochs
+}
+
+/// The v1 vectors: the ten-epoch worked table.
+fn golden() -> Vec<GoldenEpoch> {
+    let epochs = parse(ProtocolVersion::V1, GOLDEN_FILES[0].1);
+    assert_eq!(epochs.len(), 10, "the worked table covers ten epochs");
+    epochs
+}
+
+/// Every version this build implements ships vectors, and every fixture parses.
+///
+/// Without this a fixture could be dropped when its version was retired, which is exactly the
+/// deletion the per-version scheme exists to prevent — and the loss would be silent, because no
+/// other test names a fixture it does not already load.
+#[test]
+fn every_implemented_version_has_conformance_vectors() {
+    assert_eq!(
+        GOLDEN_FILES.len(),
+        ProtocolVersion::IMPLEMENTED.len(),
+        "each implemented ruleset must keep its own vectors, including retired ones"
+    );
+
+    for (version, fixture) in GOLDEN_FILES {
+        let epochs = parse(*version, fixture);
+        assert!(
+            !epochs.is_empty(),
+            "{version:?} ships an empty fixture, which proves nothing"
+        );
+    }
 }
 
 /// Walk the whole recurrence from the bootstrap anchor and check every derived field of every
@@ -56,11 +111,21 @@ fn recurrence_reproduces_every_golden_epoch() {
             record.multiplier_micros, want.multiplier_micros,
             "{at}: multiplier"
         );
-        assert_eq!(record.handicap_mojos, want.handicap_mojos, "{at}: handicap");
-        assert_eq!(record.base_mojos, want.base_mojos, "{at}: base");
         assert_eq!(
-            record.required_per_store_mojos, want.required_per_store_mojos,
+            record.handicap_dig_base_units, want.handicap_dig_base_units,
+            "{at}: handicap"
+        );
+        assert_eq!(
+            record.base_price_dig_base_units, want.base_price_dig_base_units,
+            "{at}: base"
+        );
+        assert_eq!(
+            record.required_per_store_dig_base_units, want.required_per_store_dig_base_units,
             "{at}: required"
+        );
+        assert_eq!(
+            record.protocol_version, want.protocol_version,
+            "{at}: protocol version"
         );
     }
 }
@@ -76,7 +141,7 @@ fn golden_locked_amounts_follow_from_the_default_margin() {
     for want in &epochs {
         assert_eq!(
             want.posted_each,
-            apply_safety_margin(want.required_per_store_mojos, 100),
+            apply_safety_margin(want.required_per_store_dig_base_units, 100),
             "epoch {}: posted_each is the 1% margin over this epoch's requirement",
             want.epoch
         );

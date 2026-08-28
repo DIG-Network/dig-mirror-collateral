@@ -29,7 +29,7 @@ pub struct EpochCensus {
     /// "collateralised owners", never "nodes".
     pub owners: u64,
 
-    /// The sum, in DIG mojos, of the amounts of the coins selected per triple by rule C9.
+    /// The sum, in DIG base units, of the amounts of the coins selected per triple by rule C9.
     pub locked: u64,
 }
 

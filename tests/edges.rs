@@ -2,8 +2,9 @@
 
 use dig_mirror_collateral::{
     apply_safety_margin, base_per_store, participation_micros, required_per_store,
-    sync_sample_plan, volume_micros, Band, EpochCensus, EpochRecord, MULT_CEILING_MICROS,
-    MULT_FLOOR_MICROS, MULT_SCALE, SIGNAL_CAP_MICROS, SYNC_MAX_SAMPLE, SYNC_MIN_POPULATION,
+    sync_sample_plan, volume_micros, Band, EpochCensus, EpochRecord,
+    MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS, MULT_CEILING_MICROS, MULT_FLOOR_MICROS, MULT_SCALE,
+    SIGNAL_CAP_MICROS, SYNC_MAX_SAMPLE, SYNC_MIN_POPULATION,
 };
 
 /// An empty network is not a signal. Both degenerate denominators read as exactly neutral, so a
@@ -77,7 +78,7 @@ fn the_requirement_is_finite_at_the_ceiling() {
 }
 
 /// The margin rounds up, which is the whole reason it exists — a margin that rounds down can
-/// leave a node one mojo short of the requirement it was meant to clear.
+/// leave a node one DIG base unit short of the requirement it was meant to clear.
 #[test]
 fn the_margin_rounds_up_and_never_short() {
     for required in [1u64, 999, 1_000, 1_036, 3_351, 5_000] {
@@ -93,9 +94,16 @@ fn the_margin_rounds_up_and_never_short() {
         }
     }
 
-    // The smallest preset over the smallest requirement still moves by a whole mojo, so the
-    // tightest preset is not silently a no-op.
+    // The tightest preset is not silently a no-op: it moves by a whole base unit even over the
+    // bootstrap price, and even over the smallest requirement the model can express. At a
+    // requirement of one base unit the round-up is the entire margin, which is the honest
+    // consequence of a floor set at the CAT's own resolution rather than a defect.
     assert_eq!(apply_safety_margin(1_000, 1), 1_001);
+    assert_eq!(
+        apply_safety_margin(MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS, 1),
+        2,
+        "a margin over the smallest expressible requirement still rounds up by a base unit"
+    );
     assert_eq!(apply_safety_margin(u64::MAX, 500), u64::MAX);
 }
 

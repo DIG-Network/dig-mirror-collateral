@@ -1,0 +1,235 @@
+{
+  "$comment": [
+    "Golden vectors for the DIG mirror-coin collateral recurrence, transcribed from the",
+    "normative decision on DIG-Network/dig_ecosystem#3173, section 13, under protocol version 1.",
+    "",
+    "This file is the cross-language conformance contract: a second implementation in any",
+    "language must reproduce every field below byte-identically from the census inputs alone.",
+    "It is data rather than inline assertions precisely so it can be consumed elsewhere.",
+    "",
+    "All amounts are DIG base units; 1 DIG = 1_000 DIG base units, so the smallest expressible",
+    "amount is 0.001 DIG. A DIG base unit is never a mojo: a mojo is XCH's base unit,",
+    "10^-12 XCH, nine orders of magnitude away.",
+    "All *_micros fields are fixed-point with 1_000_000 == 1.0.",
+    "",
+    "`posted_each` is what an operator at the 1% default safety margin would post for this",
+    "epoch's requirement, i.e. ceil(required(n) * 101 / 100). It is what produces the next",
+    "epoch's `locked`, and it is not consensus.",
+    "",
+    "Epoch 1 is the bootstrap anchor: no census precedes it, so its signals and band are null.",
+    "Epoch 8 is the designed shock: counted advertisements fall 74 -> 33, a 55% collapse.",
+    "",
+    "These vectors are the conformance contract for PROTOCOL VERSION 1 specifically. They are",
+    "kept and keep running after a later version activates: a retired ruleset's vectors are the",
+    "regression test that a refactor did not quietly rewrite history."
+  ],
+  "protocol_version": 1,
+  "epochs": [
+    {
+      "epoch": 1,
+      "census": {
+        "epoch": 1,
+        "stores": 0,
+        "owners": 0,
+        "locked": 0
+      },
+      "signals": null,
+      "band": null,
+      "multiplier_micros": 1000000,
+      "handicap_dig_base_units": 4000,
+      "base_price_dig_base_units": 5000,
+      "required_per_store_dig_base_units": 1000,
+      "posted_each": 1010,
+      "protocol_version": 1
+    },
+    {
+      "epoch": 2,
+      "census": {
+        "epoch": 2,
+        "stores": 12,
+        "owners": 9,
+        "locked": 12120
+      },
+      "signals": {
+        "participation_micros": 1000000,
+        "volume_micros": 1010000,
+        "saturation_micros": 1002500
+      },
+      "band": "inside",
+      "multiplier_micros": 1000000,
+      "handicap_dig_base_units": 3964,
+      "base_price_dig_base_units": 5000,
+      "required_per_store_dig_base_units": 1036,
+      "posted_each": 1047,
+      "protocol_version": 1
+    },
+    {
+      "epoch": 3,
+      "census": {
+        "epoch": 3,
+        "stores": 30,
+        "owners": 22,
+        "locked": 31410
+      },
+      "signals": {
+        "participation_micros": 2500000,
+        "volume_micros": 1010617,
+        "saturation_micros": 2127654
+      },
+      "band": "high",
+      "multiplier_micros": 1125000,
+      "handicap_dig_base_units": 3912,
+      "base_price_dig_base_units": 5625,
+      "required_per_store_dig_base_units": 1713,
+      "posted_each": 1731,
+      "protocol_version": 1
+    },
+    {
+      "epoch": 4,
+      "census": {
+        "epoch": 4,
+        "stores": 48,
+        "owners": 35,
+        "locked": 83088
+      },
+      "signals": {
+        "participation_micros": 1600000,
+        "volume_micros": 1010507,
+        "saturation_micros": 1452626
+      },
+      "band": "high",
+      "multiplier_micros": 1265625,
+      "handicap_dig_base_units": 3860,
+      "base_price_dig_base_units": 6328,
+      "required_per_store_dig_base_units": 2468,
+      "posted_each": 2493,
+      "protocol_version": 1
+    },
+    {
+      "epoch": 5,
+      "census": {
+        "epoch": 5,
+        "stores": 52,
+        "owners": 40,
+        "locked": 129636
+      },
+      "signals": {
+        "participation_micros": 1083333,
+        "volume_micros": 1010129,
+        "saturation_micros": 1065032
+      },
+      "band": "inside",
+      "multiplier_micros": 1265625,
+      "handicap_dig_base_units": 3840,
+      "base_price_dig_base_units": 6328,
+      "required_per_store_dig_base_units": 2488,
+      "posted_each": 2513,
+      "protocol_version": 1
+    },
+    {
+      "epoch": 6,
+      "census": {
+        "epoch": 6,
+        "stores": 70,
+        "owners": 55,
+        "locked": 175910
+      },
+      "signals": {
+        "participation_micros": 1346153,
+        "volume_micros": 1010048,
+        "saturation_micros": 1262126
+      },
+      "band": "high",
+      "multiplier_micros": 1423828,
+      "handicap_dig_base_units": 3780,
+      "base_price_dig_base_units": 7119,
+      "required_per_store_dig_base_units": 3339,
+      "posted_each": 3373,
+      "protocol_version": 1
+    },
+    {
+      "epoch": 7,
+      "census": {
+        "epoch": 7,
+        "stores": 74,
+        "owners": 58,
+        "locked": 249602
+      },
+      "signals": {
+        "participation_micros": 1057142,
+        "volume_micros": 1010182,
+        "saturation_micros": 1045402
+      },
+      "band": "inside",
+      "multiplier_micros": 1423828,
+      "handicap_dig_base_units": 3768,
+      "base_price_dig_base_units": 7119,
+      "required_per_store_dig_base_units": 3351,
+      "posted_each": 3385,
+      "protocol_version": 1
+    },
+    {
+      "epoch": 8,
+      "census": {
+        "epoch": 8,
+        "stores": 33,
+        "owners": 27,
+        "locked": 111705
+      },
+      "signals": {
+        "participation_micros": 445945,
+        "volume_micros": 1010146,
+        "saturation_micros": 586995
+      },
+      "band": "low",
+      "multiplier_micros": 1334839,
+      "handicap_dig_base_units": 3892,
+      "base_price_dig_base_units": 6674,
+      "required_per_store_dig_base_units": 2782,
+      "posted_each": 2810,
+      "protocol_version": 1
+    },
+    {
+      "epoch": 9,
+      "census": {
+        "epoch": 9,
+        "stores": 30,
+        "owners": 25,
+        "locked": 84300
+      },
+      "signals": {
+        "participation_micros": 909090,
+        "volume_micros": 1010064,
+        "saturation_micros": 934333
+      },
+      "band": "low",
+      "multiplier_micros": 1251412,
+      "handicap_dig_base_units": 3900,
+      "base_price_dig_base_units": 6257,
+      "required_per_store_dig_base_units": 2357,
+      "posted_each": 2381,
+      "protocol_version": 1
+    },
+    {
+      "epoch": 10,
+      "census": {
+        "epoch": 10,
+        "stores": 31,
+        "owners": 26,
+        "locked": 73811
+      },
+      "signals": {
+        "participation_micros": 1033333,
+        "volume_micros": 1010182,
+        "saturation_micros": 1027545
+      },
+      "band": "inside",
+      "multiplier_micros": 1251412,
+      "handicap_dig_base_units": 3896,
+      "base_price_dig_base_units": 6257,
+      "required_per_store_dig_base_units": 2361,
+      "posted_each": 2385,
+      "protocol_version": 1
+    }
+  ]
+}

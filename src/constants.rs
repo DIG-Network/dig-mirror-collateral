@@ -1,7 +1,19 @@
 //! The complete constant set of the collateral specification.
 //!
-//! Every value here is part of the consensus contract. Two categories exist, and the
-//! distinction matters more than the numbers do:
+//! # Denomination
+//!
+//! Every collateral amount in this crate is an integer count of **DIG base units**. DIG is a CAT
+//! with `decimals = 3`, so [`DIG_BASE_UNITS_PER_DIG`] base units are one DIG and the smallest
+//! expressible amount is **0.001 DIG**.
+//!
+//! A DIG base unit is deliberately never called a *mojo*. A mojo is XCH's base unit and is
+//! 10<sup>-12</sup> XCH; a DIG base unit is 10<sup>-3</sup> DIG. The two differ by nine orders of
+//! magnitude, and every amount here is on a money path where mistaking one for the other is not a
+//! naming quibble.
+//!
+//! # Categories
+//!
+//! Two categories exist, and the distinction matters more than the numbers do:
 //!
 //! - **Load-bearing** — a different value changes the economics of the network. Changing one is
 //!   an economic re-decision, not a tuning exercise.
@@ -11,20 +23,41 @@
 //! Each constant below says which it is. Do not "improve" a number in either category.
 
 // ---------------------------------------------------------------------------
+// Denomination
+// ---------------------------------------------------------------------------
+
+/// DIG base units in one DIG. DIG is a CAT with `decimals = 3`.
+///
+/// ARBITRARY BUT FIXED here, in that this crate does not choose it — it is the on-chain
+/// denomination of the DIG CAT, and it is stated as a constant so that every amount in this crate
+/// has its unit written down beside it rather than inferred from a comment.
+pub const DIG_BASE_UNITS_PER_DIG: u64 = 1_000;
+
+// ---------------------------------------------------------------------------
 // Price level
 // ---------------------------------------------------------------------------
 
-/// Per-store collateral at a multiplier of exactly 1.0x, in DIG mojos (5.000 DIG).
+/// Per-store collateral at a multiplier of exactly 1.0x, in DIG base units (5.000 DIG).
 ///
 /// LOAD-BEARING: this sets the entire price level of the network.
-pub const EQUILIBRIUM_PER_STORE_MOJOS: u64 = 5_000;
+pub const EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS: u64 = 5_000;
 
-/// The absolute lower bound on a per-store requirement, in DIG mojos (1.000 DIG).
+/// The absolute lower bound on a per-store requirement, in DIG base units (0.001 DIG).
 ///
-/// LOAD-BEARING: it is the Sybil floor during bootstrap, when the handicap is at its maximum and
-/// would otherwise drive the requirement toward zero — making identity-splitting free in exactly
-/// the phase where the owner count drives the subsidy.
-pub const MIN_REQUIRED_PER_STORE_MOJOS: u64 = 1_000;
+/// LOAD-BEARING: it is the guarantee that a qualifying advertisement always costs something, so
+/// posting nothing can never qualify.
+///
+/// It is **one base unit** — the smallest amount the DIG CAT can express — and that is the point.
+/// The clamp is applied *after* the multiplier, so any larger value would swallow the bottom of
+/// [`MULT_FLOOR_MICROS`]'s range: at a floor of 1.000 DIG every multiplier below 0.200x produced
+/// the same requirement, which made three orders of magnitude of the multiplier's stated range
+/// unreachable. The price level is set by the multiplier and by
+/// [`EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS`]; this constant only forbids zero.
+///
+/// If the requirement a deeply contracted network reaches is ever judged too low, the lever is
+/// [`MULT_FLOOR_MICROS`] — the bound that is *about* the price — never a second clamp here that
+/// silently overrides it.
+pub const MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS: u64 = 1;
 
 // ---------------------------------------------------------------------------
 // Multiplier fixed-point
@@ -42,8 +75,9 @@ pub const MULT_BOOTSTRAP_MICROS: u64 = 1_000_000;
 
 /// Absolute multiplier floor (0.001x), clamped *after* the step is applied.
 ///
-/// ARBITRARY BUT FIXED, and effectively unreachable because [`MIN_REQUIRED_PER_STORE_MOJOS`]
-/// binds first.
+/// LOAD-BEARING: with [`MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS`] at a single base unit, this is the
+/// bound that actually decides how far a contracting network's price can fall. It is reachable, and
+/// it is the intended lever for that question.
 pub const MULT_FLOOR_MICROS: u64 = 1_000;
 
 /// Multiplier saturation bound (1e6x).
@@ -120,12 +154,18 @@ pub const SIGNAL_CAP_MICROS: u64 = 100_000_000;
 // Bootstrap handicap
 // ---------------------------------------------------------------------------
 
-/// The bootstrap subsidy at zero verified owners, in DIG mojos (4.000 DIG).
+/// The bootstrap subsidy at zero verified owners, in DIG base units (4.000 DIG).
 ///
-/// LOAD-BEARING, and chosen so that at zero owners the requirement lands *exactly* on
-/// [`MIN_REQUIRED_PER_STORE_MOJOS`]: maximal subsidy, none of it wasted below the floor, and no
-/// flat region where the curve does nothing.
-pub const HANDICAP_MAX_MOJOS: u64 = 4_000;
+/// LOAD-BEARING: it sets the bootstrap price. At 1.0x with no verified owners the requirement is
+/// `EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS - HANDICAP_MAX_DIG_BASE_UNITS`, which is 1.000 DIG — the
+/// cheapest the network is at its own equilibrium multiplier, and the price a first operator pays.
+///
+/// It stays strictly below [`EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS`], so at equilibrium the subsidy
+/// can never erase the price entirely and drop the requirement onto
+/// [`MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS`]. A subsidy at or above the equilibrium price would
+/// make the clamp — not the curve — decide the bootstrap price, and would flatten the curve's
+/// bottom so that gaining an owner did nothing.
+pub const HANDICAP_MAX_DIG_BASE_UNITS: u64 = 4_000;
 
 /// The verified-owner count at which the subsidy reaches zero.
 ///

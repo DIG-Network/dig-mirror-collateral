@@ -10,10 +10,24 @@
 //! chain census, and `handicap(n)` is a bootstrap subsidy that shrinks linearly to zero as the
 //! network gains verified owners.
 //!
+//! # Units
+//!
+//! Every amount is an integer count of **DIG base units**. DIG is a CAT with `decimals = 3`, so
+//! `1 DIG = 1_000` base units and the smallest expressible amount is `0.001 DIG`. A DIG base unit
+//! is never called a mojo: a mojo is XCH's base unit, `10^-12` XCH, nine orders of magnitude away,
+//! and this is a money path.
+//!
+//! # Protocol versions
+//!
+//! The ruleset governing an epoch is selected by [`version_for_epoch`] from the epoch **being
+//! computed** — never from what this build happens to be — so an upgrade cannot fork the network
+//! mid-rollout. Historical rulesets are permanent, and an epoch governed by an unimplemented
+//! version is refused rather than guessed at. See [`version`] for why each of those is a rule.
+//!
 //! # What this crate is for
 //!
 //! Two independent implementations of this arithmetic must agree on every epoch, forever. A
-//! single differing mojo in one epoch propagates into every later one, because each epoch's
+//! single differing DIG base unit in one epoch propagates into every later one, because each epoch's
 //! census qualifies coins against the previous epoch's requirement. Everything unusual about
 //! this crate follows from that one requirement:
 //!
@@ -46,13 +60,13 @@
 //!
 //! // Epoch 1 depends on nothing: it is the anchor of the recurrence.
 //! let epoch1 = EpochRecord::bootstrap();
-//! assert_eq!(epoch1.required_per_store_mojos, 1_000); // 1.000 DIG
+//! assert_eq!(epoch1.required_per_store_dig_base_units, 1_000); // 1.000 DIG
 //!
 //! // Epoch 2, from what the chain says about it.
 //! let epoch2 = epoch1
 //!     .advance(EpochCensus { epoch: 2, stores: 12, owners: 9, locked: 12_120 })
 //!     .expect("epoch 2 follows epoch 1");
-//! assert_eq!(epoch2.required_per_store_mojos, 1_036); // 1.036 DIG
+//! assert_eq!(epoch2.required_per_store_dig_base_units, 1_036); // 1.036 DIG
 //! ```
 
 #![forbid(clippy::float_arithmetic)]
@@ -69,6 +83,7 @@ pub mod margin;
 pub mod record;
 pub mod requirement;
 pub mod sync;
+pub mod version;
 
 pub use census::EpochCensus;
 pub use constants::*;
@@ -82,3 +97,7 @@ pub use margin::apply_safety_margin;
 pub use record::EpochRecord;
 pub use requirement::{base_per_store, required_per_store};
 pub use sync::{sync_sample_plan, SyncSamplePlan};
+pub use version::{
+    schedule_is_strictly_ascending, version_for_epoch, version_for_epoch_in, Activation,
+    ProtocolVersion, ACTIVATION_SCHEDULE,
+};
