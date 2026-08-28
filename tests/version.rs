@@ -278,6 +278,37 @@ fn an_unimplemented_version_is_refused_and_named() {
     );
 }
 
+/// The epoch-side refusal in `EpochRecord::advance`, at the only boundary where it is reachable.
+///
+/// `advance` evaluates `version_for_epoch(epoch)?.implemented()?` — a refusal about the version the
+/// *schedule* names for the epoch being derived, distinct from the seed-side refusal above it,
+/// which is about the record's own version. Against the shipped schedule that composition can never
+/// fail, because `the_schedule_only_names_versions_this_build_implements` forbids a row for a
+/// ruleset this build lacks; replacing the line with a constant therefore fails no test.
+///
+/// It is kept anyway, since that tripwire is a test rather than a structural impossibility, and an
+/// unverified guard is a claim rather than a defence. This pins the composition itself against an
+/// explicit schedule — the same expression, with the schedule made injectable — so the guard has a
+/// test at its own boundary.
+#[test]
+fn the_epoch_side_refusal_names_the_epochs_ruleset() {
+    let schedule = schedule_with_future_activation();
+
+    assert_eq!(
+        version_for_epoch_in(&schedule, 500).and_then(ProtocolVersion::implemented),
+        Err(CollateralError::UnknownProtocolVersion { version: 2 }),
+        "an epoch governed by a ruleset this build lacks must be refused by the version the \
+         schedule names for it, not by whatever version the caller happened to hold"
+    );
+
+    // Not a blanket refusal: the same composition succeeds for an epoch v1 still governs, so the
+    // guard is targeted rather than failing everything.
+    assert_eq!(
+        version_for_epoch_in(&schedule, 499).and_then(ProtocolVersion::implemented),
+        Ok(ProtocolVersion::V1)
+    );
+}
+
 /// A record computed under an unimplemented ruleset cannot be extended.
 ///
 /// This is the fail-closed gate on the recurrence itself, and it is reachable today: a record

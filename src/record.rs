@@ -124,6 +124,21 @@ impl EpochRecord {
 
         // Fail closed, before any arithmetic: the seed must be one we can reproduce, and the
         // epoch must be one we have rules for. Both refusals travel to the caller unchanged.
+        //
+        // The two are not redundant — they answer different questions. The seed-side check asks
+        // about *this record's own* version, which arrives from outside (a record gossiped by a
+        // peer running a newer ruleset), so it is reachable today and
+        // `tests/version.rs::a_record_from_an_unimplemented_ruleset_cannot_be_advanced` fires it.
+        //
+        // The epoch-side check asks about the version the *schedule* names for the epoch being
+        // derived, and it is unreachable in any build that passes its own suite: the tripwire
+        // `tests/version.rs::the_schedule_only_names_versions_this_build_implements` forbids a
+        // schedule row for a ruleset this build lacks. It is kept deliberately, because that
+        // tripwire is a test rather than a structural impossibility — a build shipped with the
+        // suite unrun would otherwise compute an epoch governed by an unimplemented version
+        // silently under v1 arithmetic, which is the exact fallback `version.rs` forbids. Its
+        // behaviour is pinned at the only boundary where it *is* reachable, against an explicit
+        // schedule, by `tests/version.rs::the_epoch_side_refusal_names_the_epochs_ruleset`.
         self.protocol_version.implemented()?;
         let protocol_version = version_for_epoch(census.epoch)?.implemented()?;
 

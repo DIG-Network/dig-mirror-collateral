@@ -74,7 +74,10 @@ The model is a recurrence, so a rule change is never a local edit: verifying the
 replaying from genesis with each epoch recomputed under the rules in force **at that epoch**.
 
 An **activation schedule** maps each protocol version to the first epoch it governs. Rows MUST
-ascend strictly in both activation epoch and version, and the first row MUST govern epoch 1.
+ascend strictly in both activation epoch and version, and the first row MUST govern epoch 1. An
+implementation MUST reject a schedule that violates either requirement rather than select from it:
+the selection rule below reads the *last* row that has activated, so an unordered row does not
+produce an error, it produces a wrong ruleset for a range of epochs.
 
 ```
 version(n) = the version of the last schedule row with first_epoch <= n
@@ -101,9 +104,19 @@ version(n) = the version of the last schedule row with first_epoch <= n
 
 ### Failing closed
 
-An implementation reaching an epoch governed by a version it does not implement MUST refuse, and
-MUST report that version. It MUST NOT fall back to its newest known ruleset and MUST NOT
-extrapolate.
+An implementation reaching an epoch governed, **by the schedule it carries**, by a version it does
+not implement MUST refuse, and MUST report that version. It MUST NOT fall back to its newest known
+ruleset and MUST NOT extrapolate.
+
+The qualifier is load-bearing and bounds what this refusal can cover. An implementation selects the
+version from its own schedule, so it can only refuse a version its schedule names. An implementation
+predating a new version carries neither the row nor the rules: it computes the activated epoch under
+the last version it knows, returning a plausible number with no refusal available to it, because a
+schedule cannot name a version invented after it shipped. **The two refusals therefore cover
+different cases**: this one covers an implementation that has the schedule row and not the rules,
+and the record refusal below covers a record arriving from a peer that is ahead. Neither covers an
+implementation that has not been upgraded at all, which is out of scope here (section 11) and is
+addressed only by the activation lead time required below.
 
 Falling back is the dangerous branch precisely because it appears to work: the node computes a
 plausible requirement, silently disagrees with the network, and, since a coin below the real
