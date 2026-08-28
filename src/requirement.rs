@@ -26,7 +26,7 @@ pub fn base_per_store(multiplier_micros: u64) -> u64 {
 ///
 /// The clamp is a single base unit, so it does nothing but forbid a requirement of zero. It is
 /// deliberately not a price floor: applied after the multiplier, any larger value would flatten
-/// the bottom of the multiplier's range and make requirements that differ by three orders of
+/// the bottom of the multiplier's range and make requirements that differ by an order of
 /// magnitude compare equal. The price a contracting network falls to is decided by
 /// [`crate::constants::MULT_FLOOR_MICROS`], which is the bound that is *about* price.
 ///

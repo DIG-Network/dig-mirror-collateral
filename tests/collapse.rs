@@ -25,8 +25,13 @@
 //!
 //! Together the two bounds pin the value exactly; separately each names its own guard. Preserve
 //! that property — collapsing them into one `assert_eq!` collapses two proofs into one. Verified
-//! by mutation: deleting the clamp fails only the first, and replacing `saturating_sub` with a
-//! wrapping one fails only the second.
+//! by mutation, across this pair: deleting the clamp fails only the first, and replacing
+//! `saturating_sub` with a wrapping one fails only the second.
+//!
+//! The claim is about *these two* tests. `bootstrap_at_the_floor_still_costs_one_base_unit`
+//! below pins the same value exactly and so responds to both mutations; that is deliberate and
+//! is not a defect to tidy away. Making it one-sided would restore the vacuity its concrete
+//! assertion exists to prevent.
 //!
 //! # The two regimes the floor produces, and why both are asserted
 //!

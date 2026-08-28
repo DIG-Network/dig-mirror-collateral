@@ -94,9 +94,10 @@ pub const MULT_BOOTSTRAP_MICROS: u64 = 1_000_000;
 /// At the original floor roughly four thousand census identities cost one dollar. The census is
 /// what the controller reads, so a network deep enough in contraction to reach the floor would
 /// have its own inputs become forgeable for pennies — collateral stops being a Sybil cost at
-/// precisely the moment the network is least able to resist one. The floor is reachable only after
-/// roughly two years of sustained contraction, so this trades away a region that only a dying
-/// network occupies, and buys a nonzero identity cost inside it.
+/// precisely the moment the network is least able to resist one. Reaching this floor under
+/// continuous contraction takes 61 consecutive down-steps, roughly 1.2 years, against 108 steps
+/// and roughly 2.1 years for the original floor — so this trades away a region only a contracting
+/// network occupies for that much longer, and buys a nonzero identity cost inside it.
 ///
 /// **This changes the mature regime only.** At bootstrap the handicap is at its maximum, it
 /// exceeds the scaled price under either floor, and
@@ -105,7 +106,9 @@ pub const MULT_BOOTSTRAP_MICROS: u64 = 1_000_000;
 /// `tests/collapse.rs`, which asserts both regimes so that raising the *amount* floor to the same
 /// mature price cannot be mistaken for this change.
 ///
-/// `0.020x` is arbitrary within roughly `0.010x`-`0.050x`; the load-bearing part is that this
+/// `0.020x` is arbitrary within roughly `0.020x`-`0.050x`, and `0.020x` is the *bottom* of that
+/// band rather than a midpoint: `tests/collapse.rs` requires the mature floor price to be at
+/// least `0.100` DIG, which any lower multiplier floor fails. The load-bearing part is that this
 /// floor times [`EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS`] stays well above
 /// [`MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS`], which is what keeps a floor-state identity costly.
 /// Fifty-fold downward headroom from equilibrium remains.

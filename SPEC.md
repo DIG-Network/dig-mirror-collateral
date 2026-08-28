@@ -78,9 +78,11 @@ that reproduces one of those two figures but not the other has applied the wrong
 The value is `0.020x` rather than a lower bound because the floor state must retain a nonzero cost
 per counted advertisement. The census is the controller's only input, and a floor that priced an
 identity near zero would make those inputs forgeable in exactly the deeply contracted state that
-reaching the floor implies. `0.020x` is arbitrary within roughly `0.010x`-`0.050x`; what is
-load-bearing is that `MULT_FLOOR_MICROS * EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS / MULT_SCALE`
-remains well above `MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS`.
+reaching the floor implies. `0.020x` is arbitrary within roughly `0.020x`-`0.050x`, and it is the
+bottom of that band: a mature per-store requirement at the floor MUST be at least `0.100` DIG,
+which no lower multiplier floor satisfies. What is load-bearing is that
+`MULT_FLOOR_MICROS * EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS / MULT_SCALE` remains well above
+`MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS`.
 
 ## 2a. Protocol versions
 
