@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org) and
 [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.3.0] - 2026-08-28
+
+### Features
+- **collateral:** Raise MULT_FLOOR_MICROS to 20_000 (0.02x) (#3)
+
 ## [0.2.0] - 2026-08-28
 
 ### Features
