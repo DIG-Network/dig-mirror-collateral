@@ -1,5 +1,5 @@
 //! The collapse region: the two guards in `required_per_store` that only a contracting network
-//! reaches.
+//! reaches, and the price the multiplier floor sets once it gets there.
 //!
 //! The golden vectors never drive the multiplier below `1_251_412` micros, so the region where
 //! `MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS` and the `saturating_sub` first bind sits outside that
@@ -28,12 +28,23 @@
 //! by mutation: deleting the clamp fails only the first, and replacing `saturating_sub` with a
 //! wrapping one fails only the second.
 //!
-//! `the_deepest_contraction_costs_one_base_unit` is deliberately *not* part of that pair. It
-//! asserts the exact value and so fails under either mutation, which is what makes it a statement
-//! about the model's cheapest reachable price rather than about one guard.
+//! # The two regimes the floor produces, and why both are asserted
+//!
+//! [`MULT_FLOOR_MICROS`] and [`MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS`] are both floors, and they
+//! bind in *different* regimes. The bottom two tests hold one against the other:
+//!
+//! - **mature** (subsidy zero): the multiplier floor decides the price, and it must be a real cost.
+//! - **bootstrap** (subsidy at maximum): the subsidy swallows the scaled price whatever the
+//!   multiplier is, so the amount clamp decides, and the price must stay one base unit.
+//!
+//! Asserting only the mature figure would not distinguish raising the *multiplier* floor from
+//! raising the *amount* floor to the same resulting price — both make the mature number correct.
+//! Only the bootstrap assertion separates them: raising the amount floor would make a brand-new
+//! network a hundred times more expensive, and that is the change this crate is *not* making.
 
 use dig_mirror_collateral::{
-    required_per_store, EpochCensus, EpochRecord, MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS,
+    required_per_store, EpochCensus, EpochRecord, EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS,
+    HANDICAP_ZERO_AT_OWNERS, MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS, MULT_FLOOR_MICROS, MULT_SCALE,
 };
 
 /// Advertisements held constant with nothing collateralised: the simplest census that bands `Low`
@@ -124,26 +135,26 @@ fn the_subsidy_saturates_once_it_exceeds_the_base_price() {
     );
 }
 
-/// The clamp does not swallow the bottom of the multiplier's range.
+/// The amount clamp does not swallow the bottom of the multiplier's range.
 ///
-/// This is the property the 0.001 DIG floor exists for, and the one a 1.000 DIG floor destroyed:
-/// with the clamp applied *after* the multiplier, any floor above a base unit makes every
-/// multiplier below `floor / equilibrium` compare equal. At 1.000 DIG that was everything under
-/// `0.200x` — so `MULT_FLOOR_MICROS`, the stated `0.001x` bound, was unreachable and three orders
-/// of magnitude of the multiplier's range expressed a single price.
+/// This is the property the 0.001 DIG amount floor exists for, and the one a 1.000 DIG floor
+/// destroyed: with the clamp applied *after* the multiplier, any amount floor above a base unit
+/// makes every multiplier below `floor / equilibrium` compare equal. At 1.000 DIG that was
+/// everything under `0.200x` — the whole bottom of the multiplier's range expressing a single
+/// price.
 ///
 /// The owner count is `HANDICAP_ZERO_AT_OWNERS`, so the subsidy is zero and the multiplier is the
 /// only thing varying — otherwise the handicap could flatten these values on its own and the test
 /// would pass without the clamp having anything to do with it.
 #[test]
 fn multipliers_across_the_whole_floor_range_stay_distinguishable() {
-    let mature = 1_000;
+    let mature = HANDICAP_ZERO_AT_OWNERS;
 
-    let at_mult_floor = required_per_store(1_000, mature); // 0.001x
+    let at_mult_floor = required_per_store(MULT_FLOOR_MICROS, mature);
     let five_hundredths = required_per_store(50_000, mature); // 0.050x
     let one_fifth = required_per_store(200_000, mature); // 0.200x
 
-    assert_eq!(at_mult_floor, 5, "0.001x of 5.000 DIG is 0.005 DIG");
+    assert_eq!(at_mult_floor, 100, "0.020x of 5.000 DIG is 0.100 DIG");
     assert_eq!(five_hundredths, 250, "0.050x of 5.000 DIG is 0.250 DIG");
     assert_eq!(one_fifth, 1_000, "0.200x of 5.000 DIG is 1.000 DIG");
 
@@ -156,16 +167,53 @@ fn multipliers_across_the_whole_floor_range_stay_distinguishable() {
     );
 }
 
-/// The lowest requirement the model can express is one base unit, and it is reachable.
+/// A mature network resting on the multiplier floor still charges a real price per identity.
 ///
-/// Both bounds bind at once here: the multiplier floor is the lowest price the controller can
-/// reach, and the maximum subsidy takes it below zero from there. A deeply contracted, brand-new
-/// network is the intended reading of this number, not an accident.
+/// This is what `MULT_FLOOR_MICROS` is *for*. The subsidy is gone by definition in this regime, so
+/// the floor alone decides what one counted advertisement costs — and the census signals the
+/// controller reads are only as trustworthy as that cost. A floor that prices an identity at a
+/// twentieth of a base unit of value would let a contracted network's own inputs be manufactured,
+/// at exactly the moment it is least able to resist it.
+///
+/// The bound is `>=` because the load-bearing claim is the *direction*: the floor price must not
+/// fall below a tenth of a DIG. The exact figure is pinned separately, below, so that a change to
+/// the floor is reported as a changed price rather than as a silently loosened bound.
 #[test]
-fn the_deepest_contraction_costs_one_base_unit() {
+fn the_mature_floor_state_still_costs_a_real_price() {
+    let at_floor = required_per_store(MULT_FLOOR_MICROS, HANDICAP_ZERO_AT_OWNERS);
+
+    assert!(
+        at_floor >= 100,
+        "a mature network at the multiplier floor must charge at least 0.100 DIG per store, or \
+         census identities are cheap enough to manufacture: got {at_floor}"
+    );
+
+    // Derived from the constants rather than restated, so the two cannot drift apart: the mature
+    // floor price *is* equilibrium scaled by the floor, with no subsidy and no clamp involved.
     assert_eq!(
-        required_per_store(1_000, 0),
+        at_floor,
+        EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS * MULT_FLOOR_MICROS / MULT_SCALE,
+        "the mature floor price is the scaled equilibrium, unclamped"
+    );
+}
+
+/// Bootstrap at the multiplier floor still costs exactly one base unit.
+///
+/// This is the assertion that makes the one above a statement about the *multiplier* floor rather
+/// than about the price. Raising `MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS` to `100` would satisfy
+/// `the_mature_floor_state_still_costs_a_real_price` identically while making a brand-new network
+/// a hundred times more expensive to join — the opposite of what the handicap exists to do. Only
+/// this test tells the two apart.
+///
+/// The regime is genuine rather than contrived: with no verified owners the subsidy is at its
+/// maximum, it exceeds the scaled price at every multiplier at or near the floor, and the amount
+/// clamp is therefore the only thing setting the result.
+#[test]
+fn bootstrap_at_the_floor_still_costs_one_base_unit() {
+    assert_eq!(
+        required_per_store(MULT_FLOOR_MICROS, 0),
         MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS,
-        "0.001x with the full subsidy is the cheapest the model goes: 0.001 DIG"
+        "the multiplier floor must not reach the bootstrap regime: the full subsidy still \
+         saturates the scaled price to zero, and the amount clamp lifts it to one base unit"
     );
 }

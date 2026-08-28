@@ -50,8 +50,8 @@ pub const EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS: u64 = 5_000;
 /// It is **one base unit** — the smallest amount the DIG CAT can express — and that is the point.
 /// The clamp is applied *after* the multiplier, so any larger value would swallow the bottom of
 /// [`MULT_FLOOR_MICROS`]'s range: at a floor of 1.000 DIG every multiplier below 0.200x produced
-/// the same requirement, which made three orders of magnitude of the multiplier's stated range
-/// unreachable. The price level is set by the multiplier and by
+/// the same requirement, which flattened the whole bottom of the multiplier's stated range onto a
+/// single price. The price level is set by the multiplier and by
 /// [`EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS`]; this constant only forbids zero.
 ///
 /// If the requirement a deeply contracted network reaches is ever judged too low, the lever is
@@ -73,12 +73,43 @@ pub const MULT_SCALE: u64 = 1_000_000;
 /// ARBITRARY BUT FIXED.
 pub const MULT_BOOTSTRAP_MICROS: u64 = 1_000_000;
 
-/// Absolute multiplier floor (0.001x), clamped *after* the step is applied.
+/// Absolute multiplier floor (0.020x), clamped *after* the step is applied.
 ///
 /// LOAD-BEARING: with [`MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS`] at a single base unit, this is the
 /// bound that actually decides how far a contracting network's price can fall. It is reachable, and
 /// it is the intended lever for that question.
-pub const MULT_FLOOR_MICROS: u64 = 1_000;
+///
+/// # Why this is `0.020x` and not the `0.001x` originally specified
+///
+/// The original figure was chosen as the widest downward range the fixed-point scale could
+/// express. Modelling the end state it produces showed that range is wider than the mechanism
+/// survives. In the mature regime — the subsidy fully decayed, so this floor alone sets the price
+/// — the two candidates cost a per-store identity:
+///
+/// | floor | mature price | at ~$0.047/DIG |
+/// |---|---|---|
+/// | `0.001x` | `0.005` DIG | $0.000235 |
+/// | `0.020x` | `0.100` DIG | $0.004700 |
+///
+/// At the original floor roughly four thousand census identities cost one dollar. The census is
+/// what the controller reads, so a network deep enough in contraction to reach the floor would
+/// have its own inputs become forgeable for pennies — collateral stops being a Sybil cost at
+/// precisely the moment the network is least able to resist one. The floor is reachable only after
+/// roughly two years of sustained contraction, so this trades away a region that only a dying
+/// network occupies, and buys a nonzero identity cost inside it.
+///
+/// **This changes the mature regime only.** At bootstrap the handicap is at its maximum, it
+/// exceeds the scaled price under either floor, and
+/// [`MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS`] is what sets the result — so both floors yield the
+/// same `0.001` DIG and joining a new network is no more expensive than before. Held by
+/// `tests/collapse.rs`, which asserts both regimes so that raising the *amount* floor to the same
+/// mature price cannot be mistaken for this change.
+///
+/// `0.020x` is arbitrary within roughly `0.010x`-`0.050x`; the load-bearing part is that this
+/// floor times [`EQUILIBRIUM_PER_STORE_DIG_BASE_UNITS`] stays well above
+/// [`MIN_REQUIRED_PER_STORE_DIG_BASE_UNITS`], which is what keeps a floor-state identity costly.
+/// Fifty-fold downward headroom from equilibrium remains.
+pub const MULT_FLOOR_MICROS: u64 = 20_000;
 
 /// Multiplier saturation bound (1e6x).
 ///
